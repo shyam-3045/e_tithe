@@ -23,43 +23,51 @@ class AppTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 72,
+      height: 58,
       decoration: BoxDecoration(
+        color: AppColors.surface,
         border: Border.all(
           color: AppColors.borderGrey,
-          width: 1.4,
+          width: 1,
         ),
-        borderRadius: BorderRadius.circular(5),
+        borderRadius: BorderRadius.circular(18),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.deepPurple.withValues(alpha: 0.05),
+            blurRadius: 18,
+            offset: const Offset(0, 10),
+          ),
+        ],
       ),
       child: TextField(
         controller: controller,
         obscureText: obscureText,
         keyboardType: keyboardType,
         style: const TextStyle(
-          color: AppColors.textGrey,
-          fontSize: 28,
-          fontWeight: FontWeight.w400,
+          color: AppColors.textDark,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
         ),
         decoration: InputDecoration(
           hintText: hintText,
           hintStyle: const TextStyle(
             color: AppColors.textGrey,
-            fontSize: 28,
+            fontSize: 16,
             fontWeight: FontWeight.w400,
           ),
           prefixIcon: Padding(
-            padding: const EdgeInsets.only(left: 22, right: 14),
+            padding: const EdgeInsets.only(left: 18, right: 10),
             child: Icon(
               icon,
               color: AppColors.iconPurple,
-              size: 36,
+              size: 22,
             ),
           ),
           prefixIconConstraints: const BoxConstraints(
-            minWidth: 78,
+            minWidth: 56,
           ),
           suffixIcon: suffixIcon,
-          contentPadding: const EdgeInsets.symmetric(vertical: 19),
+          contentPadding: const EdgeInsets.symmetric(vertical: 18),
         ),
       ),
     );

@@ -27,7 +27,7 @@ class _SplashPageState extends State<SplashPage> {
 
     Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
-        builder: (_) => const LoginPage(showEntryAlert: true),
+        builder: (_) => const LoginPage(),
       ),
     );
   }

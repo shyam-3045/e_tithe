@@ -4,16 +4,10 @@ import '../../common/constants/app_colors.dart';
 import '../../common/constants/app_constants.dart';
 import '../../common/widgets/app_logo.dart';
 import '../../common/widgets/app_text_field.dart';
-import '../../common/widgets/common_alert.dart';
 import '../../common/widgets/primary_button.dart';
 
 class LoginPage extends StatefulWidget {
-  const LoginPage({
-    this.showEntryAlert = false,
-    super.key,
-  });
-
-  final bool showEntryAlert;
+  const LoginPage({super.key});
 
   @override
   State<LoginPage> createState() => _LoginPageState();
@@ -25,22 +19,6 @@ class _LoginPageState extends State<LoginPage> {
   bool _isPasswordHidden = true;
   bool _isLoading = false;
 
-  @override
-  void initState() {
-    super.initState();
-    if (widget.showEntryAlert) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          CommonAlert.showInfo(
-            context,
-            title: 'Welcome',
-            message: 'This is a demo login. You can enter any email and password.',
-          );
-        }
-      });
-    }
-  }
-
   Future<void> _login() async {
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
@@ -49,12 +27,6 @@ class _LoginPageState extends State<LoginPage> {
 
     if (!mounted) return;
     setState(() => _isLoading = false);
-
-    await CommonAlert.showInfo(
-      context,
-      title: 'Login Successful',
-      message: 'Any email and password are allowed for now.',
-    );
   }
 
   @override
@@ -68,68 +40,105 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 46),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return SingleChildScrollView(
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: constraints.maxHeight,
-                  ),
-                  child: Column(
-                    children: [
-                      SizedBox(height: constraints.maxHeight * 0.31),
-                      const AppLogo(size: 112),
-                      SizedBox(height: constraints.maxHeight * 0.06),
-                      AppTextField(
-                        controller: _emailController,
-                        hintText: 'Email',
-                        icon: Icons.mail_outline,
-                        keyboardType: TextInputType.emailAddress,
-                      ),
-                      const SizedBox(height: 40),
-                      AppTextField(
-                        controller: _passwordController,
-                        hintText: 'Password',
-                        icon: Icons.key,
-                        obscureText: _isPasswordHidden,
-                        suffixIcon: IconButton(
-                          onPressed: () {
-                            setState(
-                              () => _isPasswordHidden = !_isPasswordHidden,
-                            );
-                          },
-                          icon: Icon(
-                            _isPasswordHidden
-                                ? Icons.visibility
-                                : Icons.visibility_off,
-                            color: AppColors.textGrey,
-                            size: 34,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 48,
+                ),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 420),
+                    child: Container(
+                      padding: const EdgeInsets.all(24),
+                      decoration: BoxDecoration(
+                        color: AppColors.surface,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.borderGrey),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.06),
+                            blurRadius: 18,
+                            offset: const Offset(0, 8),
                           ),
-                        ),
+                        ],
                       ),
-                      const SizedBox(height: 62),
-                      PrimaryButton(
-                        label: 'Login',
-                        isLoading: _isLoading,
-                        onPressed: _login,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const AppLogo(size: 112),
+                          const SizedBox(height: 24),
+                          const Text(
+                            'Welcome back',
+                            style: TextStyle(
+                              color: AppColors.textDark,
+                              fontSize: 24,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Sign in to continue',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: AppColors.textGrey,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          AppTextField(
+                            controller: _emailController,
+                            hintText: 'Email',
+                            icon: Icons.mail_outline,
+                            keyboardType: TextInputType.emailAddress,
+                          ),
+                          const SizedBox(height: 14),
+                          AppTextField(
+                            controller: _passwordController,
+                            hintText: 'Password',
+                            icon: Icons.key,
+                            obscureText: _isPasswordHidden,
+                            suffixIcon: IconButton(
+                              onPressed: () {
+                                setState(
+                                  () => _isPasswordHidden = !_isPasswordHidden,
+                                );
+                              },
+                              icon: Icon(
+                                _isPasswordHidden
+                                    ? Icons.visibility_outlined
+                                    : Icons.visibility_off_outlined,
+                                color: AppColors.textGrey,
+                                size: 22,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 22),
+                          PrimaryButton(
+                            label: 'Login',
+                            isLoading: _isLoading,
+                            onPressed: _login,
+                          ),
+                          const SizedBox(height: 20),
+                          const Text(
+                            AppConstants.versionLabel,
+                            style: TextStyle(
+                              color: AppColors.textGrey,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 48),
-                      const Text(
-                        AppConstants.versionLabel,
-                        style: TextStyle(
-                          color: AppColors.textGrey,
-                          fontSize: 25,
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                    ],
+                    ),
                   ),
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
         ),
       ),
     );

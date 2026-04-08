@@ -5,6 +5,7 @@ import '../../common/constants/app_constants.dart';
 import '../../common/widgets/app_logo.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/primary_button.dart';
+import '../dashboard/dashboard_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -27,6 +28,12 @@ class _LoginPageState extends State<LoginPage> {
 
     if (!mounted) return;
     setState(() => _isLoading = false);
+
+    Navigator.of(context).pushReplacement(
+      MaterialPageRoute<void>(
+        builder: (_) => const DashboardPage(),
+      ),
+    );
   }
 
   @override

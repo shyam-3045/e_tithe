@@ -12,11 +12,33 @@ class AppTheme {
       colorScheme: ColorScheme.fromSeed(
         seedColor: AppColors.primaryPurple,
         primary: AppColors.primaryPurple,
+        secondary: AppColors.darkGold,
         surface: AppColors.surface,
+        surfaceTint: AppColors.surface,
       ),
       textTheme: Typography.blackMountainView.apply(
         bodyColor: AppColors.textDark,
         displayColor: AppColors.textDark,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: AppColors.primaryPurple,
+        foregroundColor: Colors.white,
+        centerTitle: false,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: Colors.white,
+          fontSize: 22,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: AppColors.surface,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(22),
+        ),
       ),
       inputDecorationTheme: const InputDecorationTheme(
         border: InputBorder.none,

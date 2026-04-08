@@ -6,7 +6,10 @@ class AppColors {
   static const Color statusBarPink = Color(0xFFE474D7);
   static const Color primaryPurple = Color(0xFF7C3AED);
   static const Color deepPurple = Color(0xFF4C1D95);
+  static const Color richPurple = Color(0xFF5B21B6);
+  static const Color mutedPurple = Color(0xFF8B5CF6);
   static const Color softPurple = Color(0xFFF4EEFF);
+  static const Color lavender = Color(0xFFEDE9FE);
   static const Color iconPurple = Color(0xFF7C3AED);
   static const Color borderGrey = Color(0xFFE4E0EA);
   static const Color textGrey = Color(0xFF6B6475);

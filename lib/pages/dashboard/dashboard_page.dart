@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../../common/constants/app_colors.dart';
 import '../../common/constants/app_constants.dart';
 import '../../common/widgets/common_alert.dart';
+import '../donor/new_donor_page.dart';
 import 'widgets/dashboard_action_card.dart';
 import 'widgets/dashboard_hero_carousel.dart';
 
@@ -73,9 +74,10 @@ class DashboardPage extends StatelessWidget {
                             DashboardActionCard(
                               title: 'New Donor',
                               icon: Icons.person_add_alt_1_rounded,
-                              onTap: () => _showComingSoon(
-                                context,
-                                'New Donor',
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const NewDonorPage(),
+                                ),
                               ),
                             ),
                             DashboardActionCard(

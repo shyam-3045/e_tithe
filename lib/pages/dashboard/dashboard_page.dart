@@ -5,6 +5,7 @@ import '../../common/constants/app_colors.dart';
 import '../../common/constants/app_constants.dart';
 import '../../common/widgets/common_alert.dart';
 import '../donor/new_donor_page.dart';
+import '../donor/donors_list_page.dart';
 import 'widgets/dashboard_action_card.dart';
 import 'widgets/dashboard_hero_carousel.dart';
 
@@ -83,7 +84,11 @@ class DashboardPage extends StatelessWidget {
                             DashboardActionCard(
                               title: 'Donors',
                               icon: Icons.volunteer_activism_rounded,
-                              onTap: () => _showComingSoon(context, 'Donors'),
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const DonorsListPage(),
+                                ),
+                              ),
                             ),
                             DashboardActionCard(
                               title: 'Receipts',

@@ -6,6 +6,7 @@ import '../../common/constants/app_constants.dart';
 import '../../common/widgets/common_alert.dart';
 import '../donor/new_donor_page.dart';
 import '../donor/donors_list_page.dart';
+import '../donor/my_receipts_page.dart';
 import 'widgets/dashboard_action_card.dart';
 import 'widgets/dashboard_hero_carousel.dart';
 
@@ -93,7 +94,11 @@ class DashboardPage extends StatelessWidget {
                             DashboardActionCard(
                               title: 'Receipts',
                               icon: Icons.receipt_long_rounded,
-                              onTap: () => _showComingSoon(context, 'Receipts'),
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute<void>(
+                                  builder: (_) => const MyReceiptsPage(),
+                                ),
+                              ),
                             ),
                             DashboardActionCard(
                               title: 'Notifications',
@@ -203,7 +208,14 @@ class _DashboardDrawer extends StatelessWidget {
             _DrawerTile(
               icon: Icons.receipt_long_rounded,
               label: 'Receipts',
-              onTap: () => _showDrawerInfo(context, 'Receipts'),
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const MyReceiptsPage(),
+                  ),
+                );
+              },
             ),
             _DrawerTile(
               icon: Icons.notifications_rounded,

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../common/constants/app_colors.dart';
+import '../../common/widgets/common_alert.dart';
+import 'dependent_page.dart';
 
 class NewDonorPage extends StatefulWidget {
   const NewDonorPage({super.key});
@@ -118,10 +120,36 @@ class _NewDonorPageState extends State<NewDonorPage> {
       return;
     }
 
-    // Implement API call 
+    // TODO(API): Implement save donor API call here.
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
         content: Text('Form is ready. Hook the save API in _handleSave().'),
+      ),
+    );
+  }
+
+  void _handlePhoto() {
+    // TODO(API): Implement photo capture/upload flow.
+    CommonAlert.showInfo(
+      context,
+      title: 'Photo',
+      message: 'Photo flow can be connected here.',
+    );
+  }
+
+  void _handleFind() {
+    // TODO(API): Implement donor search/find workflow.
+    CommonAlert.showInfo(
+      context,
+      title: 'Find',
+      message: 'Find flow can be connected here.',
+    );
+  }
+
+  void _openDependent() {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => DependentPage(donorName: _donorNameController.text),
       ),
     );
   }
@@ -131,6 +159,13 @@ class _NewDonorPageState extends State<NewDonorPage> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('New Donor'),
+      ),
+      bottomNavigationBar: _BottomActionBar(
+        onSave: _handleSave,
+        onPhoto: _handlePhoto,
+        onFind: _handleFind,
+        onDependent: _openDependent,
+        onBack: () => Navigator.of(context).maybePop(),
       ),
       body: SafeArea(
         child: Form(
@@ -391,24 +426,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
                     ],
                   ),
                 ),
-                const SizedBox(height: 24),
-                ElevatedButton.icon(
-                  onPressed: _handleSave,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryPurple,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(18),
-                    ),
-                    textStyle: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  icon: const Icon(Icons.save_outlined),
-                  label: const Text('Save Donor'),
-                ),
+                const SizedBox(height: 8),
               ],
             ),
           ),
@@ -690,6 +708,116 @@ class _ChoiceGroup extends StatelessWidget {
                 .toList(),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _BottomActionBar extends StatelessWidget {
+  const _BottomActionBar({
+    required this.onSave,
+    required this.onPhoto,
+    required this.onFind,
+    required this.onDependent,
+    required this.onBack,
+  });
+
+  final VoidCallback onSave;
+  final VoidCallback onPhoto;
+  final VoidCallback onFind;
+  final VoidCallback onDependent;
+  final VoidCallback onBack;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primaryPurple,
+              AppColors.richPurple,
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 18,
+              offset: Offset(0, -8),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _BottomAction(
+              label: 'Save',
+              icon: Icons.save_outlined,
+              onTap: onSave,
+            ),
+            _BottomAction(
+              label: 'Photo',
+              icon: Icons.photo_camera_outlined,
+              onTap: onPhoto,
+            ),
+            _BottomAction(
+              label: 'Find',
+              icon: Icons.location_on_outlined,
+              onTap: onFind,
+            ),
+            _BottomAction(
+              label: 'Dependent',
+              icon: Icons.person_add_alt_1_outlined,
+              onTap: onDependent,
+            ),
+            _BottomAction(
+              label: 'Back',
+              icon: Icons.arrow_back_ios_new_rounded,
+              onTap: onBack,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BottomAction extends StatelessWidget {
+  const _BottomAction({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

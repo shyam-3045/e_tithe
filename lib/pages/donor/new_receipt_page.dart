@@ -13,7 +13,7 @@ class NewReceiptPage extends StatefulWidget {
 }
 
 class _NewReceiptPageState extends State<NewReceiptPage> {
-  String _selectedMonth = 'APRIL';
+  late String _selectedMonth;
 
   final List<_ReceiptPaymentEntry> _payments = <_ReceiptPaymentEntry>[];
 
@@ -41,12 +41,46 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     'General Donation',
     'Tithe',
     'Mission',
+    'VBS/Camps/Retreats/Rally/Seminars',
     'Building Fund',
+    'Vehicle Fund',
+    'Devotional Book Promotion',
+    'Offering',
+    'Equipment Fund',
+    'Educational Fund',
+    'Christmas Gift Fund',
+    'North India Support',
+    'Staff Welfare Fund',
+    'Staff Support from LU',
+    'Travel Refund',
+    'From Departments',
+    'From States',
+    'VBS Support from LU',
+    'Vehicle Fund from LU',
+    'Spl.Contribution from LU',
+    'Promise Card from LU',
+    'NID Support from LU',
+    'Educational Fund from LU',
+    'Christmas Gift From LU',
+    'Building Fund from LU',
+    'Staff Support From Donor',
+    'Staff Donation',
+    'From Head Quarters',
+    'Subscription',
   ];
+
+  String _currentMonthLabel() {
+    final DateTime now = DateTime.now();
+    final int monthIndex = (now.month - 1).clamp(0, _months.length - 1);
+    return _months[monthIndex];
+  }
 
   @override
   void initState() {
     super.initState();
+
+    _selectedMonth = _currentMonthLabel();
+
     _donorDisplayName = 'MR. ${widget.donorName}'.toUpperCase();
 
     // TODO(API): Load donor address/profile for receipt header.
@@ -62,11 +96,25 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       );
 
   Future<void> _openAddPayDialog() async {
+    final Set<String> takenFunds = _payments.map((e) => e.fundType).toSet();
+    final List<String> availableFunds =
+        _fundTypes.where((f) => !takenFunds.contains(f)).toList();
+
+    if (availableFunds.isEmpty) {
+      await CommonAlert.showInfo(
+        context,
+        title: 'No more funds',
+        message: 'You have already added all available fund types.',
+      );
+      return;
+    }
+
     final _ReceiptPaymentEntry? created = await showDialog<_ReceiptPaymentEntry>(
       context: context,
       barrierDismissible: false,
       builder: (context) => _AmountDetailDialog(
         fundTypes: _fundTypes,
+        takenFundTypes: takenFunds,
       ),
     );
 
@@ -104,7 +152,7 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
 
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _ReceiptReviewPage(
+        builder: (_) => _ReceiptSignaturePage(
           donorDisplayName: _donorDisplayName,
           month: _selectedMonth,
           payments: List<_ReceiptPaymentEntry>.unmodifiable(_payments),
@@ -169,11 +217,64 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     );
   }
 
+  Future<void> _handleClearReceipt() async {
+    if (_payments.isEmpty) {
+      setState(() {
+        _selectedMonth = _currentMonthLabel();
+      });
+      return;
+    }
+
+    final bool? clear = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Clear receipt?'),
+          content: const Text('This will remove all added payments.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'No',
+                style: TextStyle(color: AppColors.textGrey),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Yes',
+                style: TextStyle(
+                  color: AppColors.primaryPurple,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (clear == true && mounted) {
+      setState(() {
+        _payments.clear();
+        _selectedMonth = _currentMonthLabel();
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('New Receipt'),
+        actions: [
+          IconButton(
+            tooltip: 'Clear receipt',
+            onPressed: _handleClearReceipt,
+            icon: const Icon(Icons.refresh_rounded),
+          ),
+        ],
       ),
       bottomNavigationBar: _ReceiptBottomBar(
         onAddPay: _openAddPayDialog,
@@ -204,6 +305,7 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
               const SizedBox(height: 10),
               DropdownButtonFormField<String>(
                 value: _selectedMonth,
+                isExpanded: true,
                 decoration: _fieldDecoration(
                   label: '',
                   icon: Icons.calendar_month_rounded,
@@ -213,12 +315,33 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
                   Icons.keyboard_arrow_down_rounded,
                   color: AppColors.textGrey,
                 ),
+                selectedItemBuilder: (context) {
+                  return _months
+                      .map(
+                        (month) => Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            month,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textDark,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      )
+                      .toList();
+                },
                 items: _months
                     .map(
                       (month) => DropdownMenuItem<String>(
                         value: month,
                         child: Text(
                           month,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: const TextStyle(
                             color: AppColors.textDark,
                             fontSize: 16,
@@ -374,36 +497,40 @@ class _DonorHeaderCard extends StatelessWidget {
                 ),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
-              child: Column(
-                children: [
-                  ...addressLines.map(
-                    (line) => Text(
-                      line,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.textGrey,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w700,
-                        height: 1.2,
+            if (addressLines.isNotEmpty || pincode.trim().isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 12, 14, 14),
+                child: Column(
+                  children: [
+                    if (addressLines.isNotEmpty)
+                      ...addressLines.map(
+                        (line) => Text(
+                          line,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: AppColors.textGrey,
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    pincode,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      fontStyle: FontStyle.italic,
-                    ),
-                  ),
-                ],
+                    if (addressLines.isNotEmpty && pincode.trim().isNotEmpty)
+                      const SizedBox(height: 4),
+                    if (pincode.trim().isNotEmpty)
+                      Text(
+                        pincode,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          color: AppColors.textGrey,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w700,
+                          fontStyle: FontStyle.italic,
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
           ],
         ),
       ),
@@ -433,6 +560,8 @@ class _PaymentRowCard extends StatelessWidget {
               children: [
                 Text(
                   item.fundType,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                     color: AppColors.textDark,
                     fontSize: 16,
@@ -570,9 +699,13 @@ class _BottomAction extends StatelessWidget {
 }
 
 class _AmountDetailDialog extends StatefulWidget {
-  const _AmountDetailDialog({required this.fundTypes});
+  const _AmountDetailDialog({
+    required this.fundTypes,
+    required this.takenFundTypes,
+  });
 
   final List<String> fundTypes;
+  final Set<String> takenFundTypes;
 
   @override
   State<_AmountDetailDialog> createState() => _AmountDetailDialogState();
@@ -588,9 +721,14 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
   @override
   void initState() {
     super.initState();
-    _selectedFundType = widget.fundTypes.isNotEmpty
-        ? widget.fundTypes.first
-        : 'General Donation';
+
+    final List<String> available = widget.fundTypes
+        .where((fund) => !widget.takenFundTypes.contains(fund))
+        .toList();
+
+    _selectedFundType = available.contains('General Donation')
+        ? 'General Donation'
+        : (available.isNotEmpty ? available.first : 'General Donation');
   }
 
   @override
@@ -611,6 +749,15 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
         context,
         title: 'Invalid',
         message: 'Enter a valid amount.',
+      );
+      return;
+    }
+
+    if (widget.takenFundTypes.contains(_selectedFundType)) {
+      await CommonAlert.showInfo(
+        context,
+        title: 'Duplicate fund',
+        message: 'This fund type is already added. Please select another one.',
       );
       return;
     }
@@ -652,6 +799,7 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
               const SizedBox(height: 8),
               DropdownButtonFormField<String>(
                 value: _selectedFundType,
+                isExpanded: true,
                 decoration: _fieldDecoration(
                   label: '',
                   icon: Icons.volunteer_activism_rounded,
@@ -661,19 +809,46 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
                   Icons.keyboard_arrow_down_rounded,
                   color: AppColors.textGrey,
                 ),
-                items: widget.fundTypes
-                    .map(
-                      (fund) => DropdownMenuItem<String>(
-                        value: fund,
-                        child: Text(
-                          fund,
-                          style: const TextStyle(
-                            color: AppColors.textDark,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                selectedItemBuilder: (context) {
+                  return widget.fundTypes
+                      .map(
+                        (fund) => Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            fund,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.textDark,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
-                      ),
+                      )
+                      .toList();
+                },
+                items: widget.fundTypes
+                    .map(
+                      (fund) {
+                        final bool isTaken = widget.takenFundTypes.contains(fund);
+                        return DropdownMenuItem<String>(
+                          value: fund,
+                          enabled: !isTaken,
+                          child: Text(
+                            fund,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isTaken
+                                  ? AppColors.textGrey.withOpacity(0.65)
+                                  : AppColors.textDark,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        );
+                      },
                     )
                     .toList(),
                 onChanged: (value) {
@@ -767,8 +942,8 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
   }
 }
 
-class _ReceiptReviewPage extends StatelessWidget {
-  const _ReceiptReviewPage({
+class _ReceiptSignaturePage extends StatefulWidget {
+  const _ReceiptSignaturePage({
     required this.donorDisplayName,
     required this.month,
     required this.payments,
@@ -781,79 +956,348 @@ class _ReceiptReviewPage extends StatelessWidget {
   final double totalAmount;
 
   @override
+  State<_ReceiptSignaturePage> createState() => _ReceiptSignaturePageState();
+}
+
+class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
+  final _SignatureController _signatureController = _SignatureController();
+
+  Future<void> _handleSubmit() async {
+    if (!_signatureController.hasSignature) {
+      await CommonAlert.showInfo(
+        context,
+        title: 'Signature required',
+        message: 'Please get donor signature before submitting.',
+      );
+      return;
+    }
+
+    // TODO(API): Submit receipt + signature points/image.
+    // await _submitReceipt(signature: _signatureController.points);
+
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Hook submit API on this step.')),
+    );
+
+    Navigator.of(context).pop();
+  }
+
+  void _handleClearSignature() {
+    _signatureController.clear();
+  }
+
+  void _handleBack() {
+    Navigator.of(context).maybePop();
+  }
+
+  @override
+  void dispose() {
+    _signatureController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Receipt Review')),
+      appBar: AppBar(title: const Text('Signature & Submit')),
+      bottomNavigationBar: AnimatedBuilder(
+        animation: _signatureController,
+        builder: (context, _) {
+          return _SignatureBottomBar(
+            canSubmit: _signatureController.hasSignature,
+            onClear: _handleClearSignature,
+            onBack: _handleBack,
+            onSubmit: _handleSubmit,
+          );
+        },
+      ),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                donorDisplayName,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w900,
+              _DonorHeaderCard(
+                donorDisplayName: widget.donorDisplayName,
+                addressLines: const [],
+                pincode: '',
+              ),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.borderGrey),
+                ),
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Month: ${widget.month}',
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...widget.payments.map(
+                      (p) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                p.fundType,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.textDark,
+                                  fontWeight: FontWeight.w800,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              '₹${p.amount.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: AppColors.primaryPurple,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Total: ₹${widget.totalAmount.toStringAsFixed(0)}',
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        color: AppColors.statusBarPink,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 6),
-              Text(
-                'Month: $month',
-                style: const TextStyle(
+              const SizedBox(height: 18),
+              const Text(
+                'Donor Signature',
+                style: TextStyle(
                   color: AppColors.textGrey,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                child: ListView.separated(
-                  itemCount: payments.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    return _PaymentRowCard(item: payments[index]);
-                  },
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Total: ₹${totalAmount.toStringAsFixed(0)}',
-                textAlign: TextAlign.right,
-                style: const TextStyle(
-                  color: AppColors.primaryPurple,
                   fontSize: 18,
-                  fontWeight: FontWeight.w900,
+                  fontWeight: FontWeight.w800,
                 ),
               ),
               const SizedBox(height: 10),
-              ElevatedButton(
-                onPressed: () {
-                  // TODO(API): Submit receipt to server.
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Hook submit API on this step.'),
-                    ),
+              AnimatedBuilder(
+                animation: _signatureController,
+                builder: (context, _) {
+                  return _SignaturePad(
+                    controller: _signatureController,
+                    height: 220,
                   );
                 },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryPurple,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(18),
-                  ),
-                  textStyle: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                  ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Please ask the donor to sign inside the box.',
+                style: TextStyle(
+                  color: AppColors.textGrey.withOpacity(0.85),
+                  fontWeight: FontWeight.w600,
                 ),
-                child: const Text('Submit (TODO)'),
               ),
             ],
           ),
         ),
       ),
     );
+  }
+}
+
+class _SignatureBottomBar extends StatelessWidget {
+  const _SignatureBottomBar({
+    required this.canSubmit,
+    required this.onClear,
+    required this.onBack,
+    required this.onSubmit,
+  });
+
+  final bool canSubmit;
+  final VoidCallback onClear;
+  final VoidCallback onBack;
+  final VoidCallback onSubmit;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Container(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primaryPurple,
+              AppColors.richPurple,
+            ],
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Color(0x1A000000),
+              blurRadius: 18,
+              offset: Offset(0, -8),
+            ),
+          ],
+        ),
+        padding: const EdgeInsets.symmetric(vertical: 10),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            _BottomAction(
+              label: 'Clear',
+              icon: Icons.delete_outline_rounded,
+              onTap: onClear,
+            ),
+            _BottomAction(
+              label: 'Back',
+              icon: Icons.arrow_back_ios_new_rounded,
+              onTap: onBack,
+            ),
+            Opacity(
+              opacity: canSubmit ? 1 : 0.55,
+              child: IgnorePointer(
+                ignoring: !canSubmit,
+                child: _BottomAction(
+                  label: 'Submit',
+                  icon: Icons.check_circle_outline_rounded,
+                  onTap: onSubmit,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SignatureController extends ChangeNotifier {
+  final List<Offset?> _points = <Offset?>[];
+
+  List<Offset?> get points => List<Offset?>.unmodifiable(_points);
+
+  bool get hasSignature => _points.any((p) => p != null);
+
+  void addPoint(Offset point) {
+    _points.add(point);
+    notifyListeners();
+  }
+
+  void endStroke() {
+    _points.add(null);
+    notifyListeners();
+  }
+
+  void clear() {
+    _points.clear();
+    notifyListeners();
+  }
+}
+
+class _SignaturePad extends StatefulWidget {
+  const _SignaturePad({
+    required this.controller,
+    required this.height,
+  });
+
+  final _SignatureController controller;
+  final double height;
+
+  @override
+  State<_SignaturePad> createState() => _SignaturePadState();
+}
+
+class _SignaturePadState extends State<_SignaturePad> {
+  void _add(Offset globalPosition) {
+    final RenderBox? box = context.findRenderObject() as RenderBox?;
+    if (box == null) return;
+    final Offset local = box.globalToLocal(globalPosition);
+    if (local.dx < 0 || local.dy < 0) return;
+    if (local.dx > box.size.width || local.dy > box.size.height) return;
+    widget.controller.addPoint(local);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: widget.height,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.statusBarPink.withOpacity(0.55),
+          width: 1.4,
+        ),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            if (!widget.controller.hasSignature)
+              Center(
+                child: Text(
+                  'Sign here',
+                  style: TextStyle(
+                    color: AppColors.textGrey.withOpacity(0.5),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            GestureDetector(
+              onPanStart: (d) => _add(d.globalPosition),
+              onPanUpdate: (d) => _add(d.globalPosition),
+              onPanEnd: (_) => widget.controller.endStroke(),
+              child: CustomPaint(
+                painter: _SignaturePainter(widget.controller.points),
+                size: Size.infinite,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SignaturePainter extends CustomPainter {
+  const _SignaturePainter(this.points);
+
+  final List<Offset?> points;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final Paint paint = Paint()
+      ..color = AppColors.textDark
+      ..strokeWidth = 3.0
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    for (int i = 0; i < points.length - 1; i++) {
+      final Offset? p1 = points[i];
+      final Offset? p2 = points[i + 1];
+      if (p1 != null && p2 != null) {
+        canvas.drawLine(p1, p2, paint);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SignaturePainter oldDelegate) {
+    return oldDelegate.points != points;
   }
 }
 

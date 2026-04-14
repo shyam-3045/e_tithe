@@ -4,9 +4,12 @@ import 'package:flutter/services.dart';
 import '../../common/constants/app_colors.dart';
 import '../../common/constants/app_constants.dart';
 import '../../common/widgets/common_alert.dart';
+import '../auth/login_page.dart';
 import '../donor/new_donor_page.dart';
 import '../donor/donors_list_page.dart';
 import '../donor/my_receipts_page.dart';
+import 'reset_password_page.dart';
+import 'update_user_profile_page.dart';
 import 'widgets/dashboard_action_card.dart';
 import 'widgets/dashboard_hero_carousel.dart';
 
@@ -195,32 +198,33 @@ class _DashboardDrawer extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             _DrawerTile(
-              icon: Icons.dashboard_rounded,
-              label: 'Dashboard',
-              selected: true,
-              onTap: () => Navigator.of(context).pop(),
-            ),
-            _DrawerTile(
-              icon: Icons.people_alt_rounded,
-              label: 'Donor Management',
-              onTap: () => _showDrawerInfo(context, 'Donor Management'),
-            ),
-            _DrawerTile(
-              icon: Icons.receipt_long_rounded,
-              label: 'Receipts',
+              icon: Icons.person_rounded,
+              label: 'Profile',
               onTap: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).push(
                   MaterialPageRoute<void>(
-                    builder: (_) => const MyReceiptsPage(),
+                    builder: (_) => const UpdateUserProfilePage(),
                   ),
                 );
               },
             ),
             _DrawerTile(
-              icon: Icons.notifications_rounded,
-              label: 'Notifications',
-              onTap: () => _showDrawerInfo(context, 'Notifications'),
+              icon: Icons.lock_reset_rounded,
+              label: 'Change Password',
+              onTap: () {
+                Navigator.of(context).pop();
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => const ResetPasswordPage(),
+                  ),
+                );
+              },
+            ),
+            _DrawerTile(
+              icon: Icons.power_settings_new_rounded,
+              label: 'Logout',
+              onTap: () => _handleLogout(context),
             ),
             const Spacer(),
             const Padding(
@@ -240,9 +244,41 @@ class _DashboardDrawer extends StatelessWidget {
     );
   }
 
-  static void _showDrawerInfo(BuildContext context, String title) {
-    Navigator.of(context).pop();
-    DashboardPage._showComingSoon(context, title);
+  static Future<void> _handleLogout(BuildContext context) async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Logout'),
+          content: const Text('Do you want to logout?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Logout'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+
+    // Close drawer if it is open.
+    Navigator.of(context).maybePop();
+
+    // TODO(API): Call logout API and clear saved auth token here.
+
+    if (!context.mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute<void>(
+        builder: (_) => const LoginPage(),
+      ),
+      (_) => false,
+    );
   }
 }
 

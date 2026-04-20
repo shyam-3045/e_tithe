@@ -93,9 +93,7 @@ class _UpdateUserProfilePageState extends State<UpdateUserProfilePage> {
         statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Update Profile'),
-        ),
+        appBar: AppBar(title: const Text('Update Profile')),
         bottomNavigationBar: SafeArea(
           top: false,
           child: Padding(

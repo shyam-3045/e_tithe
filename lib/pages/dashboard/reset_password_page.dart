@@ -63,9 +63,7 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
         statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Change Password'),
-        ),
+        appBar: AppBar(title: const Text('Change Password')),
         body: SafeArea(
           child: Form(
             key: _formKey,

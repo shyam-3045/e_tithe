@@ -33,6 +33,9 @@ migrate_working_dir/
 /build/
 /coverage/
 
+# Environment files
+# (kept in repo because we need it as a Flutter asset)
+
 # Symbolication related
 app.*.symbols
 

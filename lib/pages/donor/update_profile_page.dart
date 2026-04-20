@@ -177,9 +177,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Update Donor'),
-      ),
+      appBar: AppBar(title: const Text('Update Donor')),
       bottomNavigationBar: _BottomActionBar(
         onUpdate: _handleUpdate,
         onPhoto: _handlePhoto,
@@ -275,17 +273,22 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                         onChanged: (value) {
                           setState(() {
                             _selectedMaritalStatus = value;
+                            if (_selectedMaritalStatus != 'Married') {
+                              _weddingDateController.clear();
+                            }
                           });
                         },
                       ),
-                      const SizedBox(height: 14),
-                      _OutlinedTextField(
-                        controller: _weddingDateController,
-                        label: 'Wedding Date',
-                        icon: Icons.calendar_month_rounded,
-                        readOnly: true,
-                        onTap: () => _pickDate(_weddingDateController),
-                      ),
+                      if (_selectedMaritalStatus == 'Married') ...[
+                        const SizedBox(height: 14),
+                        _OutlinedTextField(
+                          controller: _weddingDateController,
+                          label: 'Wedding Date',
+                          icon: Icons.calendar_month_rounded,
+                          readOnly: true,
+                          onTap: () => _pickDate(_weddingDateController),
+                        ),
+                      ],
                       const SizedBox(height: 14),
                       _ChoiceGroup(
                         label: 'Membership',
@@ -452,10 +455,7 @@ class _SectionPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: AppColors.lavender,
-          width: 1.4,
-        ),
+        border: Border.all(color: AppColors.lavender, width: 1.4),
         boxShadow: [
           BoxShadow(
             color: AppColors.deepPurple.withOpacity(0.06),
@@ -476,10 +476,7 @@ class _SectionPanel extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    AppColors.statusBarPink,
-                    AppColors.mutedPurple,
-                  ],
+                  colors: [AppColors.statusBarPink, AppColors.mutedPurple],
                 ),
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
@@ -507,10 +504,7 @@ class _SectionPanel extends StatelessWidget {
             ),
           ),
           if (isExpanded)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: child,
-            ),
+            Padding(padding: const EdgeInsets.all(16), child: child),
         ],
       ),
     );
@@ -557,10 +551,7 @@ class _OutlinedTextField extends StatelessWidget {
   }
 
   static InputDecoration _inputDecoration(String label, IconData icon) {
-    const borderSide = BorderSide(
-      color: AppColors.borderGrey,
-      width: 1.2,
-    );
+    const borderSide = BorderSide(color: AppColors.borderGrey, width: 1.2);
 
     return InputDecoration(
       labelText: label,
@@ -608,7 +599,10 @@ class _DropdownField extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       value: value,
-      decoration: _OutlinedTextField._inputDecoration(label, Icons.arrow_drop_down),
+      decoration: _OutlinedTextField._inputDecoration(
+        label,
+        Icons.arrow_drop_down,
+      ),
       icon: const Icon(Icons.arrow_drop_down_rounded),
       items: items
           .map(
@@ -651,9 +645,7 @@ class _ChoiceGroup extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: AppColors.borderGrey,
-        ),
+        border: Border.all(color: AppColors.borderGrey),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -681,9 +673,7 @@ class _ChoiceGroup extends StatelessWidget {
                       activeColor: AppColors.statusBarPink,
                       title: Text(
                         option,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       onChanged: (selected) {
                         if (selected != null) {
@@ -724,10 +714,7 @@ class _BottomActionBar extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              AppColors.primaryPurple,
-              AppColors.richPurple,
-            ],
+            colors: [AppColors.primaryPurple, AppColors.richPurple],
           ),
           boxShadow: [
             BoxShadow(

@@ -1,8 +1,12 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+import '../../common/constants/api_config.dart';
+import '../../common/constants/api_endpoints.dart';
 import '../../common/constants/app_colors.dart';
 import '../../common/widgets/common_alert.dart';
-import 'dependent_page.dart';
 
 class NewDonorPage extends StatefulWidget {
   const NewDonorPage({super.key});
@@ -28,8 +32,18 @@ class _NewDonorPageState extends State<NewDonorPage> {
   final _whatsAppController = TextEditingController();
   final _emailController = TextEditingController();
 
+  // Dependents (inline section)
+  final _dependentNameController = TextEditingController();
+  final _dependentRelationshipController = TextEditingController();
+  final _dependentBirthDateController = TextEditingController();
+  final _dependentAgeController = TextEditingController();
+  final List<_DependentDraft> _dependents = <_DependentDraft>[];
+
   bool _personalExpanded = true;
   bool _addressExpanded = true;
+  bool _dependentsExpanded = true;
+
+  bool _saving = false;
 
   String? _selectedTitle = 'Mr.';
   String? _selectedGender = 'Male';
@@ -76,6 +90,12 @@ class _NewDonorPageState extends State<NewDonorPage> {
     _mobileController.dispose();
     _whatsAppController.dispose();
     _emailController.dispose();
+
+    _dependentNameController.dispose();
+    _dependentRelationshipController.dispose();
+    _dependentBirthDateController.dispose();
+    _dependentAgeController.dispose();
+
     super.dispose();
   }
 
@@ -113,19 +133,187 @@ class _NewDonorPageState extends State<NewDonorPage> {
     });
   }
 
-  void _handleSave() {
-    FocusScope.of(context).unfocus();
+  DateTime? _parseUiDate(String input) {
+    final String text = input.trim();
+    if (text.isEmpty) return null;
 
-    if (!_formKey.currentState!.validate()) {
+    // UI format used in this screen: dd/MM/yyyy
+    final parts = text.split('/');
+    if (parts.length != 3) return null;
+
+    final int? day = int.tryParse(parts[0]);
+    final int? month = int.tryParse(parts[1]);
+    final int? year = int.tryParse(parts[2]);
+    if (day == null || month == null || year == null) return null;
+
+    return DateTime(year, month, day);
+  }
+
+  String? _toApiDateString(DateTime? date) {
+    if (date == null) return null;
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  void _addDependentDraft() {
+    final name = _dependentNameController.text.trim();
+    final relationship = _dependentRelationshipController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dependent name is required.')),
+      );
       return;
     }
 
-    // TODO(API): Implement save donor API call here.
+    final DateTime now = DateTime.now().toUtc();
+
+    setState(() {
+      _dependents.add(
+        _DependentDraft(
+          relationID: 0,
+          donorID: 0,
+          relationName: name,
+          relationshipToDonor: relationship,
+          relationAge: _dependentAgeController.text.trim(),
+          relationBirthDate: _parseUiDate(_dependentBirthDateController.text),
+          deleted: false,
+          createdOn: now,
+          createdBy: 'mobile-app',
+          modifiedOn: now,
+          modifiedBy: 'mobile-app',
+        ),
+      );
+
+      _dependentNameController.clear();
+      _dependentRelationshipController.clear();
+      _dependentBirthDateController.clear();
+      _dependentAgeController.clear();
+    });
+  }
+
+  void _removeDependentAt(int index) {
+    setState(() {
+      _dependents.removeAt(index);
+    });
+  }
+
+  Map<String, dynamic> _buildDonorPayload() {
+    final DateTime now = DateTime.now().toUtc();
+
+    return <String, dynamic>{
+      'donorID': 0,
+      'donorName': _donorNameController.text.trim(),
+      'panNumber': _panController.text.trim(),
+      'aadhaarNumber': _aadharController.text.trim(),
+      'birthDate': _toApiDateString(_parseUiDate(_birthDateController.text)),
+      'marriageDate': (_selectedMaritalStatus == 'Married')
+          ? _toApiDateString(_parseUiDate(_weddingDateController.text))
+          : null,
+      'gender': (_selectedGender ?? '').trim(),
+      'maritalStatus': (_selectedMaritalStatus ?? '').trim(),
+      'regionID': 0,
+      'areaID': 0,
+      'areaLeaderID': 0,
+      'promotionStaffID': 0,
+      'mobile': _mobileController.text.trim(),
+      'whatsAppNumber': _whatsAppController.text.trim(),
+      'email': _emailController.text.trim(),
+      'street': _streetController.text.trim(),
+      'village': _flatBuildingController.text.trim(),
+      'city': _cityController.text.trim(),
+      'district': _districtController.text.trim(),
+      'state': (_selectedState ?? '').trim(),
+      'pincode': _pincodeController.text.trim(),
+      'isActive': true,
+      'deleted': false,
+      'createdOn': now.toIso8601String(),
+      'createdBy': 'mobile-app',
+      'modifiedOn': now.toIso8601String(),
+      'modifiedBy': 'mobile-app',
+      'dependents': _dependents.map((d) => d.toJson()).toList(),
+    };
+  }
+
+  Future<void> _handleSave() async {
+    FocusScope.of(context).unfocus();
+
+    if (_saving) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Saving... please wait.')),
+      );
+      return;
+    }
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Form is ready. Hook the save API in _handleSave().'),
-      ),
+      const SnackBar(content: Text('Saving donor...')),
     );
+
+    if (!_formKey.currentState!.validate()) {
+      setState(() {
+        _personalExpanded = true;
+        _addressExpanded = true;
+        _dependentsExpanded = true;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill all required fields.')),
+      );
+      return;
+    }
+
+    setState(() => _saving = true);
+
+    try {
+      final uri = ApiConfig.uri(ApiEndpoints.donor);
+      final payload = _buildDonorPayload();
+      print(uri);
+      print(payload);
+
+      final response = await http.post(
+        uri,
+        headers: const {
+          'Content-Type': 'application/json; charset=utf-8',
+          'Accept': 'application/json',
+        },
+        body: jsonEncode(payload),
+        
+      );
+      print(response);
+
+      if (!mounted) return;
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Donor saved successfully.')),
+        );
+        return;
+      }
+
+      await CommonAlert.showInfo(
+        context,
+        title: 'Save failed',
+        message:
+            'Status: ${response.statusCode}\n\n${response.body.isEmpty ? 'No response body' : response.body}',
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      final String hint =
+          "Cannot reach API. Current URL:\n\n\n"
+          'If you are on Android emulator use API_BASE_URL=http://10.0.2.2:5089\n'
+          'If you are on a physical phone use your PC IP, e.g. API_BASE_URL=http://192.168.x.x:5089\n'
+          'Also ensure backend is running.';
+
+      await CommonAlert.showInfo(
+        context,
+        title: 'Network error',
+        message: '${e.toString()}\n\n$hint',
+      );
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   void _handlePhoto() {
@@ -146,25 +334,15 @@ class _NewDonorPageState extends State<NewDonorPage> {
     );
   }
 
-  void _openDependent() {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => DependentPage(donorName: _donorNameController.text),
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('New Donor'),
-      ),
+      appBar: AppBar(title: const Text('New Donor')),
       bottomNavigationBar: _BottomActionBar(
         onSave: _handleSave,
         onPhoto: _handlePhoto,
         onFind: _handleFind,
-        onDependent: _openDependent,
         onBack: () => Navigator.of(context).maybePop(),
       ),
       body: SafeArea(
@@ -243,17 +421,22 @@ class _NewDonorPageState extends State<NewDonorPage> {
                         onChanged: (value) {
                           setState(() {
                             _selectedMaritalStatus = value;
+                            if (_selectedMaritalStatus != 'Married') {
+                              _weddingDateController.clear();
+                            }
                           });
                         },
                       ),
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _weddingDateController,
-                        label: 'Wedding Date',
-                        icon: Icons.event_rounded,
-                        readOnly: true,
-                        onTap: () => _pickDate(_weddingDateController),
-                      ),
+                      if (_selectedMaritalStatus == 'Married') ...[
+                        const SizedBox(height: 16),
+                        _StyledTextField(
+                          controller: _weddingDateController,
+                          label: 'Wedding Date',
+                          icon: Icons.event_rounded,
+                          readOnly: true,
+                          onTap: () => _pickDate(_weddingDateController),
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       _ChoiceGroup(
                         label: 'Membership',
@@ -426,6 +609,81 @@ class _NewDonorPageState extends State<NewDonorPage> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 18),
+                _SectionCard(
+                  title: 'Dependent Details',
+                  isExpanded: _dependentsExpanded,
+                  onToggle: () {
+                    setState(() {
+                      _dependentsExpanded = !_dependentsExpanded;
+                    });
+                  },
+                  child: Column(
+                    children: [
+                      _StyledTextField(
+                        controller: _dependentNameController,
+                        label: 'Dependent Name',
+                        icon: Icons.person_outline_rounded,
+                      ),
+                      const SizedBox(height: 16),
+                      _StyledTextField(
+                        controller: _dependentRelationshipController,
+                        label: 'Relationship To Donor',
+                        icon: Icons.family_restroom_outlined,
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _StyledTextField(
+                              controller: _dependentBirthDateController,
+                              label: 'Birth Date',
+                              icon: Icons.cake_outlined,
+                              readOnly: true,
+                              onTap: () => _pickDate(_dependentBirthDateController),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _StyledTextField(
+                              controller: _dependentAgeController,
+                              label: 'Age',
+                              icon: Icons.numbers_rounded,
+                              keyboardType: TextInputType.number,
+                              textCapitalization: TextCapitalization.none,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton.icon(
+                          onPressed: _addDependentDraft,
+                          icon: const Icon(Icons.add_rounded),
+                          label: const Text('Add Dependent'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.statusBarPink,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_dependents.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        ...List.generate(
+                          _dependents.length,
+                          (index) => _DependentTile(
+                            dependent: _dependents[index],
+                            onRemove: () => _removeDependentAt(index),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 8),
               ],
             ),
@@ -462,10 +720,7 @@ class _SectionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(24),
-        border: Border.all(
-          color: AppColors.lavender,
-          width: 1.4,
-        ),
+        border: Border.all(color: AppColors.lavender, width: 1.4),
         boxShadow: [
           BoxShadow(
             color: AppColors.deepPurple.withValues(alpha: 0.06),
@@ -486,10 +741,7 @@ class _SectionCard extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    AppColors.statusBarPink,
-                    AppColors.mutedPurple,
-                  ],
+                  colors: [AppColors.statusBarPink, AppColors.mutedPurple],
                 ),
                 borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
               ),
@@ -517,10 +769,7 @@ class _SectionCard extends StatelessWidget {
             ),
           ),
           if (isExpanded)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: child,
-            ),
+            Padding(padding: const EdgeInsets.all(16), child: child),
         ],
       ),
     );
@@ -612,10 +861,7 @@ class _DropdownField<T> extends StatelessWidget {
           ? null
           : Text(
               hintText!,
-              style: const TextStyle(
-                color: AppColors.textGrey,
-                fontSize: 16,
-              ),
+              style: const TextStyle(color: AppColors.textGrey, fontSize: 16),
             ),
       dropdownColor: AppColors.surface,
       icon: const Icon(
@@ -663,9 +909,7 @@ class _ChoiceGroup extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.surface,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: AppColors.borderGrey,
-        ),
+        border: Border.all(color: AppColors.borderGrey),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -693,9 +937,7 @@ class _ChoiceGroup extends StatelessWidget {
                       activeColor: AppColors.statusBarPink,
                       title: Text(
                         option,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: const TextStyle(fontWeight: FontWeight.w600),
                       ),
                       onChanged: (selected) {
                         if (selected != null) {
@@ -718,14 +960,12 @@ class _BottomActionBar extends StatelessWidget {
     required this.onSave,
     required this.onPhoto,
     required this.onFind,
-    required this.onDependent,
     required this.onBack,
   });
 
   final VoidCallback onSave;
   final VoidCallback onPhoto;
   final VoidCallback onFind;
-  final VoidCallback onDependent;
   final VoidCallback onBack;
 
   @override
@@ -736,10 +976,7 @@ class _BottomActionBar extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              AppColors.primaryPurple,
-              AppColors.richPurple,
-            ],
+            colors: [AppColors.primaryPurple, AppColors.richPurple],
           ),
           boxShadow: [
             BoxShadow(
@@ -767,11 +1004,6 @@ class _BottomActionBar extends StatelessWidget {
               label: 'Find',
               icon: Icons.location_on_outlined,
               onTap: onFind,
-            ),
-            _BottomAction(
-              label: 'Dependent',
-              icon: Icons.person_add_alt_1_outlined,
-              onTap: onDependent,
             ),
             _BottomAction(
               label: 'Back',
@@ -823,6 +1055,107 @@ class _BottomAction extends StatelessWidget {
   }
 }
 
+class _DependentDraft {
+  const _DependentDraft({
+    required this.relationID,
+    required this.donorID,
+    required this.relationName,
+    required this.relationshipToDonor,
+    required this.relationBirthDate,
+    required this.relationAge,
+    required this.deleted,
+    required this.createdOn,
+    required this.createdBy,
+    required this.modifiedOn,
+    required this.modifiedBy,
+  });
+
+  final int relationID;
+  final int donorID;
+  final String relationName;
+  final DateTime? relationBirthDate;
+  final String relationAge;
+  final String relationshipToDonor;
+  final bool deleted;
+  final DateTime createdOn;
+  final String createdBy;
+  final DateTime modifiedOn;
+  final String modifiedBy;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'relationID': relationID,
+      'donorID': donorID,
+      'relationName': relationName,
+      'relationBirthDate': relationBirthDate?.toUtc().toIso8601String(),
+      'relationAge': relationAge,
+      'relationshipToDonor': relationshipToDonor,
+      'deleted': deleted,
+      'createdOn': createdOn.toUtc().toIso8601String(),
+      'createdBy': createdBy,
+      'modifiedOn': modifiedOn.toUtc().toIso8601String(),
+      'modifiedBy': modifiedBy,
+    };
+  }
+}
+
+class _DependentTile extends StatelessWidget {
+  const _DependentTile({required this.dependent, required this.onRemove});
+
+  final _DependentDraft dependent;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderGrey),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.person_rounded, color: AppColors.iconPurple),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dependent.relationName,
+                  style: const TextStyle(
+                    color: AppColors.textDark,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (dependent.relationshipToDonor.trim().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      dependent.relationshipToDonor,
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Remove',
+            onPressed: onRemove,
+            icon: const Icon(Icons.close_rounded, color: AppColors.textGrey),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 InputDecoration _fieldDecoration({
   required String label,
   required IconData icon,
@@ -841,38 +1174,23 @@ InputDecoration _fieldDecoration({
     ),
     filled: true,
     fillColor: AppColors.surface,
-    prefixIcon: Icon(
-      icon,
-      color: AppColors.iconPurple,
-    ),
+    prefixIcon: Icon(icon, color: AppColors.iconPurple),
     suffixIcon: suffixIcon,
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(
-        color: AppColors.borderGrey,
-        width: 1.2,
-      ),
+      borderSide: const BorderSide(color: AppColors.borderGrey, width: 1.2),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(
-        color: AppColors.primaryPurple,
-        width: 1.6,
-      ),
+      borderSide: const BorderSide(color: AppColors.primaryPurple, width: 1.6),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(
-        color: Colors.redAccent,
-        width: 1.2,
-      ),
+      borderSide: const BorderSide(color: Colors.redAccent, width: 1.2),
     ),
     focusedErrorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(
-        color: Colors.redAccent,
-        width: 1.4,
-      ),
+      borderSide: const BorderSide(color: Colors.redAccent, width: 1.4),
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
   );

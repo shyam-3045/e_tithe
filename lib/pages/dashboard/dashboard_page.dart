@@ -28,10 +28,7 @@ class DashboardPage extends StatelessWidget {
         statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        drawer: const _DashboardDrawer(
-          userName: _userName,
-          role: _role,
-        ),
+        drawer: const _DashboardDrawer(userName: _userName, role: _role),
         appBar: AppBar(
           toolbarHeight: 78,
           titleSpacing: 0,
@@ -106,10 +103,8 @@ class DashboardPage extends StatelessWidget {
                             DashboardActionCard(
                               title: 'Notifications',
                               icon: Icons.notifications_active_rounded,
-                              onTap: () => _showComingSoon(
-                                context,
-                                'Notifications',
-                              ),
+                              onTap: () =>
+                                  _showComingSoon(context, 'Notifications'),
                             ),
                           ],
                         ),
@@ -135,10 +130,7 @@ class DashboardPage extends StatelessWidget {
 }
 
 class _DashboardDrawer extends StatelessWidget {
-  const _DashboardDrawer({
-    required this.userName,
-    required this.role,
-  });
+  const _DashboardDrawer({required this.userName, required this.role});
 
   final String userName;
   final String role;
@@ -157,10 +149,7 @@ class _DashboardDrawer extends StatelessWidget {
                 gradient: LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [
-                    AppColors.primaryPurple,
-                    AppColors.richPurple,
-                  ],
+                  colors: [AppColors.primaryPurple, AppColors.richPurple],
                 ),
               ),
               child: Column(
@@ -274,9 +263,7 @@ class _DashboardDrawer extends StatelessWidget {
 
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute<void>(
-        builder: (_) => const LoginPage(),
-      ),
+      MaterialPageRoute<void>(builder: (_) => const LoginPage()),
       (_) => false,
     );
   }
@@ -302,9 +289,7 @@ class _DrawerTile extends StatelessWidget {
       child: ListTile(
         selected: selected,
         selectedTileColor: AppColors.softPurple,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         leading: Icon(
           icon,
           color: selected ? AppColors.primaryPurple : AppColors.textGrey,

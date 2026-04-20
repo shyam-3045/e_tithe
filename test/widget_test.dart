@@ -32,6 +32,11 @@ void _installMockAuthClient() {
         final String? authorization = request.headers['authorization'];
         expect(authorization, isNotNull);
         expect(authorization, 'Bearer test-token');
+        if (request.method == 'GET') {
+          return http.Response('''[
+              {"donorName":"Test Donor","email":"test@gmail.com","mobileNo":"9999999999","city":"TestCity","area":"TestArea","pincode":"123456"}
+            ]''', 200);
+        }
         return http.Response('{"message":"saved"}', 201);
       }
 

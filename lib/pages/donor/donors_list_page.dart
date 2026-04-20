@@ -1,51 +1,136 @@
-import 'package:flutter/material.dart';
+import 'dart:convert';
 
+import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+
+import '../../common/constants/api_config.dart';
+import '../../common/constants/api_endpoints.dart';
 import '../../common/constants/app_colors.dart';
+import '../../common/services/auth_service.dart';
 import '../../common/widgets/common_alert.dart';
 import 'update_profile_page.dart';
 import 'my_receipts_page.dart';
 import 'dependent_page.dart';
 import 'new_receipt_page.dart';
 
-class DonorsListPage extends StatelessWidget {
+class DonorsListPage extends StatefulWidget {
   const DonorsListPage({super.key});
 
-  static final List<_DonorListItem> _donors = <_DonorListItem>[
-    const _DonorListItem(
-      name: 'Mukti Ranjan Nag',
-      membership: 'Member',
-      addressLines: ['Balangir', 'Balangir', 'Northern Division-767001'],
-      email: 'ranjan@gmail.com',
-      phone: '9692962159',
-      avatarUrl: 'https://i.pravatar.cc/150?img=12',
-    ),
-    const _DonorListItem(
-      name: 'Prasanta Pattnaik',
-      membership: 'Member',
-      addressLines: ['Malipada', 'Bhawanipatna', 'Bhawanipatna -766001'],
-      email: 'prasanta@gmail.com',
-      phone: '9861380163',
-      avatarUrl: 'https://i.pravatar.cc/150?img=47',
-    ),
-    const _DonorListItem(
-      name: 'Samuel Suna',
-      membership: 'Member',
-      addressLines: [
-        'Brajrajnagar',
-        'St. Peter church',
-        'Brajrajnagar -768225',
-      ],
-      email: 'samuel@gmail.com',
-      phone: '9658214124',
-    ),
-    const _DonorListItem(
-      name: 'Sipra Rani Das',
-      membership: 'Member',
-      addressLines: ['Katabaga', 'Full gospel church', 'Brajrajnagar -768225'],
-      email: 'suprarani@gmail.com',
-      phone: '9438856985',
-    ),
-  ];
+  @override
+  State<DonorsListPage> createState() => _DonorsListPageState();
+}
+
+class _DonorsListPageState extends State<DonorsListPage> {
+  late Future<List<_DonorListItem>> _donorsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _donorsFuture = _fetchDonors();
+  }
+
+  Future<List<_DonorListItem>> _fetchDonors() async {
+    try {
+      final Uri uri = ApiConfig.uri(ApiEndpoints.donor);
+      final Map<String, String> headers = await AuthService.instance
+          .authenticatedJsonHeaders();
+
+      print('[API] URL: $uri');
+      print('[API] Payload: N/A');
+
+      final http.Response response = await http.get(uri, headers: headers);
+
+      print('[API] Response: ${response.statusCode} ${response.body}');
+
+      if (response.statusCode < 200 || response.statusCode >= 300) {
+        throw Exception('Failed to fetch donors. Please try again.');
+      }
+
+      final Object decoded = jsonDecode(response.body);
+      final List<dynamic> donorsList = _extractList(decoded);
+
+      final List<_DonorListItem> donors = donorsList
+          .cast<Map<String, dynamic>>()
+          .map((data) => _DonorListItem.fromJson(data))
+          .toList();
+
+      return _attachDependents(donors, headers);
+    } on AuthException {
+      rethrow;
+    } catch (error) {
+      throw Exception(error.toString());
+    }
+  }
+
+  Future<List<_DonorListItem>> _attachDependents(
+    List<_DonorListItem> donors,
+    Map<String, String> headers,
+  ) async {
+    final List<Future<_DonorListItem>> requests = donors
+        .map((donor) => _loadDependentsForDonor(donor, headers))
+        .toList();
+    return Future.wait(requests);
+  }
+
+  Future<_DonorListItem> _loadDependentsForDonor(
+    _DonorListItem donor,
+    Map<String, String> headers,
+  ) async {
+    if (donor.donorId <= 0) {
+      return donor;
+    }
+
+    final Uri uri = ApiConfig.uri(ApiEndpoints.dependentByDonor(donor.donorId));
+    print('[API] URL: $uri');
+    print('[API] Payload: N/A');
+
+    final http.Response response = await http.get(uri, headers: headers);
+    print('[API] Response: ${response.statusCode} ${response.body}');
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      return donor;
+    }
+
+    final Object decoded = jsonDecode(response.body);
+    final List<dynamic> dependents = _extractList(decoded);
+
+    final List<String> dependentNames = dependents
+        .whereType<Map<String, dynamic>>()
+        .map(_dependentNameFromJson)
+        .where((name) => name.isNotEmpty)
+        .toList();
+
+    return donor.copyWith(dependents: dependentNames);
+  }
+
+  List<dynamic> _extractList(Object decoded) {
+    if (decoded is List) {
+      return decoded;
+    }
+
+    if (decoded is Map<String, dynamic>) {
+      final Object? data =
+          decoded['data'] ?? decoded['items'] ?? decoded['result'];
+      if (data is List) {
+        return data;
+      }
+    }
+
+    return const <dynamic>[];
+  }
+
+  String _dependentNameFromJson(Map<String, dynamic> json) {
+    final String relationName = (json['relationName'] ?? '').toString().trim();
+    if (relationName.isNotEmpty) return relationName;
+
+    final String dependentName = (json['dependentName'] ?? '')
+        .toString()
+        .trim();
+    if (dependentName.isNotEmpty) return dependentName;
+
+    final String name = (json['name'] ?? '').toString().trim();
+    return name;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -66,16 +151,64 @@ class DonorsListPage extends StatelessWidget {
         ],
       ),
       body: SafeArea(
-        child: ListView.separated(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-          itemCount: _donors.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 14),
-          itemBuilder: (context, index) {
-            final donor = _donors[index];
-            return _DonorCard(
-              donor: donor,
-              onMenuSelected: (action) =>
-                  _handleMenuSelection(context, donor: donor, action: action),
+        child: FutureBuilder<List<_DonorListItem>>(
+          future: _donorsFuture,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+
+            if (snapshot.hasError) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(
+                      Icons.error_outline_rounded,
+                      size: 48,
+                      color: AppColors.textGrey,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      snapshot.error.toString(),
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 24),
+                    FilledButton(
+                      onPressed: () => setState(() {
+                        _donorsFuture = _fetchDonors();
+                      }),
+                      child: const Text('Try Again'),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            final List<_DonorListItem> donors = snapshot.data ?? [];
+            if (donors.isEmpty) {
+              return const Center(child: Text('No donors found'));
+            }
+
+            return ListView.separated(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              itemCount: donors.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 14),
+              itemBuilder: (context, index) {
+                final donor = donors[index];
+                return _DonorCard(
+                  donor: donor,
+                  onMenuSelected: (action) => _handleMenuSelection(
+                    context,
+                    donor: donor,
+                    action: action,
+                  ),
+                );
+              },
             );
           },
         ),
@@ -83,7 +216,7 @@ class DonorsListPage extends StatelessWidget {
     );
   }
 
-  static void _handleMenuSelection(
+  void _handleMenuSelection(
     BuildContext context, {
     required _DonorListItem donor,
     required _DonorMenuAction action,
@@ -96,7 +229,7 @@ class DonorsListPage extends StatelessWidget {
       case _DonorMenuAction.myReceipts:
         page = MyReceiptsPage(donorName: donor.name);
       case _DonorMenuAction.dependent:
-        page = DependentPage(donorName: donor.name);
+        page = DependentPage(donorName: donor.name, donorId: donor.donorId);
       case _DonorMenuAction.newReceipt:
         page = NewReceiptPage(donorName: donor.name);
     }
@@ -109,19 +242,83 @@ enum _DonorMenuAction { updateProfile, myReceipts, dependent, newReceipt }
 
 class _DonorListItem {
   const _DonorListItem({
+    required this.donorId,
     required this.name,
     required this.membership,
     required this.addressLines,
     required this.email,
     required this.phone,
+    this.dependents = const <String>[],
     this.avatarUrl,
   });
 
+  factory _DonorListItem.fromJson(Map<String, dynamic> json) {
+    return _DonorListItem(
+      donorId: _parseInt(
+        json['donorId'] ?? json['donorID'] ?? json['id'] ?? json['ID'],
+      ),
+      name:
+          json['donorName']?.toString() ??
+          json['name']?.toString() ??
+          'Unknown',
+      membership: json['membership']?.toString() ?? 'Member',
+      addressLines: _parseAddressLines(json),
+      email: json['email']?.toString() ?? '',
+      phone: json['mobileNo']?.toString() ?? json['phone']?.toString() ?? '',
+      avatarUrl: null,
+    );
+  }
+
+  _DonorListItem copyWith({
+    int? donorId,
+    String? name,
+    String? membership,
+    List<String>? addressLines,
+    String? email,
+    String? phone,
+    List<String>? dependents,
+    String? avatarUrl,
+  }) {
+    return _DonorListItem(
+      donorId: donorId ?? this.donorId,
+      name: name ?? this.name,
+      membership: membership ?? this.membership,
+      addressLines: addressLines ?? this.addressLines,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      dependents: dependents ?? this.dependents,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+    );
+  }
+
+  static int _parseInt(Object? value) {
+    if (value is int) return value;
+    return int.tryParse((value ?? '').toString()) ?? 0;
+  }
+
+  static List<String> _parseAddressLines(Map<String, dynamic> json) {
+    final List<String> lines = [];
+    if (json['city'] != null && json['city'].toString().isNotEmpty) {
+      lines.add(json['city'].toString());
+    }
+    if (json['area'] != null && json['area'].toString().isNotEmpty) {
+      lines.add(json['area'].toString());
+    }
+    if (json['pincode'] != null && json['pincode'].toString().isNotEmpty) {
+      final String addressLine = '${json['state'] ?? ""} - ${json['pincode']}'
+          .replaceAll(RegExp(r'^\s*-\s*'), '');
+      lines.add(addressLine);
+    }
+    return lines.isEmpty ? ['Address not provided'] : lines;
+  }
+
+  final int donorId;
   final String name;
   final String membership;
   final List<String> addressLines;
   final String email;
   final String phone;
+  final List<String> dependents;
   final String? avatarUrl;
 }
 
@@ -204,6 +401,55 @@ class _DonorCard extends StatelessWidget {
                                 ),
                               ),
                             ),
+                            const SizedBox(height: 8),
+                            if (donor.dependents.isEmpty)
+                              const Text(
+                                'Dependents: None',
+                                style: TextStyle(
+                                  color: AppColors.textGrey,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              )
+                            else ...[
+                              Text(
+                                'Dependents (${donor.dependents.length}):',
+                                style: const TextStyle(
+                                  color: AppColors.textGrey,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Wrap(
+                                spacing: 6,
+                                runSpacing: 6,
+                                children: donor.dependents
+                                    .map(
+                                      (name) => Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 4,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.softPurple,
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          name,
+                                          style: const TextStyle(
+                                            color: AppColors.primaryPurple,
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ],
                           ],
                         ),
                       ),

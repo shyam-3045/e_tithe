@@ -96,22 +96,29 @@ class AuthService {
     required String password,
   }) async {
     final Uri uri = ApiConfig.uri(ApiEndpoints.login);
+    final Map<String, String> loginPayload = <String, String>{
+      'email': email.trim(),
+      'password': password,
+    };
+
+    print('[API] URL: $uri');
+    print('[API] Payload: ${jsonEncode(loginPayload)}');
+
     final http.Response response = await _client.post(
       uri,
       headers: const <String, String>{
         'Content-Type': 'application/json; charset=utf-8',
         'Accept': 'application/json',
       },
-      body: jsonEncode(<String, String>{
-        'email': email.trim(),
-        'password': password,
-      }),
+      body: jsonEncode(loginPayload),
     );
+
+    print('[API] Response: ${response.statusCode} ${response.body}');
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw AuthException(
         _extractMessage(response.body) ??
-            'Login failed with status ${response.statusCode}.',
+            'Invalid email or password. Please try again.',
       );
     }
 

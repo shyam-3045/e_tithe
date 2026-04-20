@@ -270,15 +270,15 @@ class _NewDonorPageState extends State<NewDonorPage> {
       final uri = ApiConfig.uri(ApiEndpoints.donor);
       final payload = _buildDonorPayload();
       final headers = await AuthService.instance.authenticatedJsonHeaders();
-      print(uri);
-      print(payload);
+      print('[API] URL: $uri');
+      print('[API] Payload: ${jsonEncode(payload)}');
 
       final response = await http.post(
         uri,
         headers: headers,
         body: jsonEncode(payload),
       );
-      print(response);
+      print('[API] Response: ${response.statusCode} ${response.body}');
 
       if (!mounted) return;
 

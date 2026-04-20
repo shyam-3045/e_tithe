@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../common/constants/app_colors.dart';
 import '../../common/constants/app_constants.dart';
+import '../../common/services/auth_service.dart';
+import '../../common/widgets/common_alert.dart';
 import '../../common/widgets/app_logo.dart';
 import '../../common/widgets/app_text_field.dart';
 import '../../common/widgets/primary_button.dart';
@@ -22,18 +24,48 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _login() async {
     FocusScope.of(context).unfocus();
+
+    final String email = _emailController.text.trim();
+    final String password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      await CommonAlert.showInfo(
+        context,
+        title: 'Missing details',
+        message: 'Enter both email and password to continue.',
+      );
+      return;
+    }
+
     setState(() => _isLoading = true);
 
-    await Future<void>.delayed(AppConstants.loginDuration);
+    try {
+      await AuthService.instance.login(email: email, password: password);
 
-    if (!mounted) return;
-    setState(() => _isLoading = false);
+      if (!mounted) return;
 
-    Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(
-        builder: (_) => const DashboardPage(),
-      ),
-    );
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(builder: (_) => const DashboardPage()),
+      );
+    } on AuthException catch (error) {
+      if (!mounted) return;
+      await CommonAlert.showInfo(
+        context,
+        title: 'Login failed',
+        message: error.message,
+      );
+    } catch (error) {
+      if (!mounted) return;
+      await CommonAlert.showInfo(
+        context,
+        title: 'Login failed',
+        message: error.toString(),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   @override

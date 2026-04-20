@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import '../../common/constants/api_config.dart';
 import '../../common/constants/api_endpoints.dart';
 import '../../common/constants/app_colors.dart';
+import '../../common/services/auth_service.dart';
 import '../../common/widgets/common_alert.dart';
 
 class NewDonorPage extends StatefulWidget {
@@ -241,15 +242,15 @@ class _NewDonorPageState extends State<NewDonorPage> {
     FocusScope.of(context).unfocus();
 
     if (_saving) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Saving... please wait.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Saving... please wait.')));
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Saving donor...')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Saving donor...')));
 
     if (!_formKey.currentState!.validate()) {
       setState(() {
@@ -268,17 +269,14 @@ class _NewDonorPageState extends State<NewDonorPage> {
     try {
       final uri = ApiConfig.uri(ApiEndpoints.donor);
       final payload = _buildDonorPayload();
+      final headers = await AuthService.instance.authenticatedJsonHeaders();
       print(uri);
       print(payload);
 
       final response = await http.post(
         uri,
-        headers: const {
-          'Content-Type': 'application/json; charset=utf-8',
-          'Accept': 'application/json',
-        },
+        headers: headers,
         body: jsonEncode(payload),
-        
       );
       print(response);
 
@@ -300,11 +298,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
     } catch (e) {
       if (!mounted) return;
 
-      final String hint =
-          "Cannot reach API. Current URL:\n\n\n"
-          'If you are on Android emulator use API_BASE_URL=http://10.0.2.2:5089\n'
-          'If you are on a physical phone use your PC IP, e.g. API_BASE_URL=http://192.168.x.x:5089\n'
-          'Also ensure backend is running.';
+      final String hint = "Error in calling api";
 
       await CommonAlert.showInfo(
         context,
@@ -333,7 +327,6 @@ class _NewDonorPageState extends State<NewDonorPage> {
       message: 'Find flow can be connected here.',
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -640,7 +633,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
                               label: 'Birth Date',
                               icon: Icons.cake_outlined,
                               readOnly: true,
-                              onTap: () => _pickDate(_dependentBirthDateController),
+                              onTap: () =>
+                                  _pickDate(_dependentBirthDateController),
                             ),
                           ),
                           const SizedBox(width: 12),

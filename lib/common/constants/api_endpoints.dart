@@ -1,6 +1,7 @@
 class ApiEndpoints {
   const ApiEndpoints._();
 
+  static const String login = '/api/Auth/login';
   static const String donor = '/api/Donor';
 
   // Add upcoming endpoints here as you integrate them.

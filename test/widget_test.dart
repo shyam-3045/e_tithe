@@ -1,10 +1,59 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 import 'package:e_tithe/app/e_tithe_app.dart';
 import 'package:e_tithe/common/constants/app_constants.dart';
+import 'package:e_tithe/common/services/auth_service.dart';
+
+const String _loginResponse = '''
+{
+  "token": "test-token",
+  "refreshToken": null,
+  "expiration": "2026-04-20T08:29:41Z",
+  "userId": "3",
+  "userGuid": "86dbee57-2e24-4b1e-baa0-173d8f70984e",
+  "userName": "Saran",
+  "email": "etithe@gmail.com",
+  "userTypeId": 1,
+  "isActive": true,
+  "message": "Authentication successful"
+}
+''';
+
+void _installMockAuthClient() {
+  AuthService.instance = AuthService(
+    client: MockClient((request) async {
+      if (request.url.path == '/api/Auth/login') {
+        return http.Response(_loginResponse, 200);
+      }
+
+      if (request.url.path == '/api/Donor') {
+        final String? authorization = request.headers['authorization'];
+        expect(authorization, isNotNull);
+        expect(authorization, 'Bearer test-token');
+        return http.Response('{"message":"saved"}', 201);
+      }
+
+      return http.Response('Not found', 404);
+    }),
+  );
+}
 
 void main() {
-  testWidgets('Splash opens login page after delay', (WidgetTester tester) async {
+  setUp(_installMockAuthClient);
+
+  Future<void> _signIn(WidgetTester tester) async {
+    await tester.enterText(find.byType(TextField).at(0), 'etithe@gmail.com');
+    await tester.enterText(find.byType(TextField).at(1), 'secret123');
+    await tester.tap(find.text('Login'));
+    await tester.pump();
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('Splash opens login page after delay', (
+    WidgetTester tester,
+  ) async {
     await tester.pumpWidget(const ETitheApp());
 
     expect(find.text('SU-INDIA'), findsOneWidget);
@@ -23,10 +72,7 @@ void main() {
     await tester.pump(AppConstants.splashDuration);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Login'));
-    await tester.pump();
-    await tester.pump(AppConstants.loginDuration);
-    await tester.pumpAndSettle();
+    await _signIn(tester);
 
     expect(find.text('e-Tithe'), findsOneWidget);
     expect(find.text('Wilson Behera  -  [Field Officer]'), findsOneWidget);
@@ -43,10 +89,7 @@ void main() {
     await tester.pump(AppConstants.splashDuration);
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('Login'));
-    await tester.pump();
-    await tester.pump(AppConstants.loginDuration);
-    await tester.pumpAndSettle();
+    await _signIn(tester);
 
     await tester.tap(find.text('New Donor'));
     await tester.pumpAndSettle();

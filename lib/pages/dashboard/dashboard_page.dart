@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 
 import '../../common/constants/app_colors.dart';
 import '../../common/constants/app_constants.dart';
+import '../../common/services/auth_service.dart';
 import '../../common/widgets/common_alert.dart';
 import '../auth/login_page.dart';
 import '../donor/new_donor_page.dart';
@@ -259,7 +260,7 @@ class _DashboardDrawer extends StatelessWidget {
     // Close drawer if it is open.
     Navigator.of(context).maybePop();
 
-    // TODO(API): Call logout API and clear saved auth token here.
+    await AuthService.instance.clearSession();
 
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(

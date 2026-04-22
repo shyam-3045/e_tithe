@@ -1,12 +1,7 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:http/http.dart' as http;
 
-import '../../common/constants/api_config.dart';
-import '../../common/constants/api_endpoints.dart';
 import '../../common/constants/app_colors.dart';
-import '../../common/services/auth_service.dart';
+import '../../common/services/donor_service.dart';
 
 class DependentPage extends StatefulWidget {
   const DependentPage({super.key, required this.donorName, this.donorId});
@@ -19,58 +14,21 @@ class DependentPage extends StatefulWidget {
 }
 
 class _DependentPageState extends State<DependentPage> {
-  late Future<List<_DependentItem>> _dependentsFuture;
+  late Future<DonorDetails> _donorFuture;
 
   @override
   void initState() {
     super.initState();
-    _dependentsFuture = _fetchDependents();
+    _donorFuture = _fetchDonor();
   }
 
-  Future<List<_DependentItem>> _fetchDependents() async {
+  Future<DonorDetails> _fetchDonor() {
     final int donorId = widget.donorId ?? 0;
     if (donorId <= 0) {
-      return const <_DependentItem>[];
+      throw Exception('Donor ID is missing.');
     }
 
-    final Uri uri = ApiConfig.uri(ApiEndpoints.dependentByDonor(donorId));
-    final Map<String, String> headers = await AuthService.instance
-        .authenticatedJsonHeaders();
-
-    print('[API] URL: $uri');
-    print('[API] Payload: N/A');
-
-    final http.Response response = await http.get(uri, headers: headers);
-
-    print('[API] Response: ${response.statusCode} ${response.body}');
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      throw Exception('Failed to fetch dependents. Please try again.');
-    }
-
-    final Object decoded = jsonDecode(response.body);
-    final List<dynamic> list = _extractList(decoded);
-
-    return list
-        .whereType<Map<String, dynamic>>()
-        .map(_DependentItem.fromJson)
-        .toList();
-  }
-
-  List<dynamic> _extractList(Object decoded) {
-    if (decoded is List) {
-      return decoded;
-    }
-
-    if (decoded is Map<String, dynamic>) {
-      final Object? data =
-          decoded['data'] ?? decoded['items'] ?? decoded['result'];
-      if (data is List) {
-        return data;
-      }
-    }
-
-    return const <dynamic>[];
+    return DonorService.instance.fetchDonorById(donorId);
   }
 
   @override
@@ -93,8 +51,8 @@ class _DependentPageState extends State<DependentPage> {
                   ),
                 ),
               )
-            : FutureBuilder<List<_DependentItem>>(
-                future: _dependentsFuture,
+            : FutureBuilder<DonorDetails>(
+                future: _donorFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
@@ -124,7 +82,7 @@ class _DependentPageState extends State<DependentPage> {
                             const SizedBox(height: 16),
                             FilledButton(
                               onPressed: () => setState(() {
-                                _dependentsFuture = _fetchDependents();
+                                _donorFuture = _fetchDonor();
                               }),
                               child: const Text('Try Again'),
                             ),
@@ -134,9 +92,10 @@ class _DependentPageState extends State<DependentPage> {
                     );
                   }
 
-                  final List<_DependentItem> items =
-                      snapshot.data ?? const <_DependentItem>[];
-                  if (items.isEmpty) {
+                  final DonorDetails donor = snapshot.data!;
+                  final List<DonorDependent> dependents = donor.dependents;
+
+                  if (dependents.isEmpty) {
                     return Center(
                       child: Text(
                         'No dependents found for ${widget.donorName}.',
@@ -150,10 +109,10 @@ class _DependentPageState extends State<DependentPage> {
 
                   return ListView.separated(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-                    itemCount: items.length,
+                    itemCount: dependents.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
-                      final _DependentItem item = items[index];
+                      final DonorDependent item = dependents[index];
                       return Container(
                         padding: const EdgeInsets.all(14),
                         decoration: BoxDecoration(
@@ -198,27 +157,4 @@ class _DependentPageState extends State<DependentPage> {
       ),
     );
   }
-}
-
-class _DependentItem {
-  const _DependentItem({required this.name, required this.relation});
-
-  factory _DependentItem.fromJson(Map<String, dynamic> json) {
-    final String name =
-        (json['relationName'] ?? json['dependentName'] ?? json['name'] ?? '')
-            .toString()
-            .trim();
-    final String relation =
-        (json['relationshipToDonor'] ?? json['relation'] ?? '')
-            .toString()
-            .trim();
-
-    return _DependentItem(
-      name: name.isEmpty ? 'Unknown dependent' : name,
-      relation: relation,
-    );
-  }
-
-  final String name;
-  final String relation;
 }

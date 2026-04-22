@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import '../../common/constants/app_colors.dart';
 import '../../common/widgets/common_alert.dart';
+import '../../common/services/donor_service.dart';
 import 'dependent_page.dart';
 
 class UpdateProfilePage extends StatefulWidget {
-  const UpdateProfilePage({super.key, required this.donorName});
+  const UpdateProfilePage({super.key, required this.donorName, this.donorId});
 
   final String donorName;
+  final int? donorId;
 
   @override
   State<UpdateProfilePage> createState() => _UpdateProfilePageState();
@@ -69,18 +71,52 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
 
     _donorNameController.text = widget.donorName;
 
-    // TODO(API): Load donor details by donor id/name and prefill the controllers.
-    // _loadDonorFromApi();
+    _loadDonorFromApi();
+  }
 
-    // Prefill sample values to match the screenshot feel.
-    _flatBuildingController.text = 'Balangir';
-    _streetController.text = 'Balangir';
-    _cityController.text = 'Northern Division';
-    _pincodeController.text = '767001';
-    _districtController.text = 'Bolangir';
-    _mobileController.text = '9692962159';
-    _whatsAppController.text = '9437225071';
-    _emailController.text = 'ranjan@gmail.com';
+  Future<void> _loadDonorFromApi() async {
+    final int donorId = widget.donorId ?? 0;
+    if (donorId <= 0) return;
+
+    try {
+      final donor = await DonorService.instance.fetchDonorById(donorId);
+      if (!mounted) return;
+
+      setState(() {
+        _donorNameController.text = donor.name;
+        _selectedTitle = donor.title;
+        _selectedGender = donor.gender;
+        _selectedMaritalStatus = donor.maritalStatus;
+        _selectedMembership = donor.membership;
+
+        _flatBuildingController.text = donor.flatBuilding;
+        _streetController.text = donor.street;
+        _cityController.text = donor.city;
+        _pincodeController.text = donor.pincode;
+        _districtController.text = donor.district;
+        _mobileController.text = donor.mobile;
+        _whatsAppController.text = donor.whatsApp;
+        _emailController.text = donor.email;
+        _birthDateController.text = donor.birthDate;
+        _weddingDateController.text = donor.weddingDate;
+        _aadharController.text = donor.aadharNo;
+        _panController.text = donor.panNo;
+
+        if (_areas.contains(donor.area)) {
+          _selectedArea = donor.area;
+        }
+        if (_states.contains(donor.state)) {
+          _selectedState = donor.state;
+        }
+      });
+    } catch (error) {
+      if (!mounted) return;
+      await CommonAlert.showInfo(
+        context,
+        title: 'Load failed',
+        message: error.toString(),
+      );
+    }
   }
 
   @override
@@ -169,7 +205,10 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
   void _openDependent() {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => DependentPage(donorName: _donorNameController.text),
+        builder: (_) => DependentPage(
+          donorName: _donorNameController.text,
+          donorId: widget.donorId,
+        ),
       ),
     );
   }

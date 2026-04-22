@@ -54,53 +54,12 @@ class _DonorsListPageState extends State<DonorsListPage> {
           .map((data) => _DonorListItem.fromJson(data))
           .toList();
 
-      return _attachDependents(donors, headers);
+      return donors;
     } on AuthException {
       rethrow;
     } catch (error) {
       throw Exception(error.toString());
     }
-  }
-
-  Future<List<_DonorListItem>> _attachDependents(
-    List<_DonorListItem> donors,
-    Map<String, String> headers,
-  ) async {
-    final List<Future<_DonorListItem>> requests = donors
-        .map((donor) => _loadDependentsForDonor(donor, headers))
-        .toList();
-    return Future.wait(requests);
-  }
-
-  Future<_DonorListItem> _loadDependentsForDonor(
-    _DonorListItem donor,
-    Map<String, String> headers,
-  ) async {
-    if (donor.donorId <= 0) {
-      return donor;
-    }
-
-    final Uri uri = ApiConfig.uri(ApiEndpoints.dependentByDonor(donor.donorId));
-    print('[API] URL: $uri');
-    print('[API] Payload: N/A');
-
-    final http.Response response = await http.get(uri, headers: headers);
-    print('[API] Response: ${response.statusCode} ${response.body}');
-
-    if (response.statusCode < 200 || response.statusCode >= 300) {
-      return donor;
-    }
-
-    final Object decoded = jsonDecode(response.body);
-    final List<dynamic> dependents = _extractList(decoded);
-
-    final List<String> dependentNames = dependents
-        .whereType<Map<String, dynamic>>()
-        .map(_dependentNameFromJson)
-        .where((name) => name.isNotEmpty)
-        .toList();
-
-    return donor.copyWith(dependents: dependentNames);
   }
 
   List<dynamic> _extractList(Object decoded) {
@@ -117,19 +76,6 @@ class _DonorsListPageState extends State<DonorsListPage> {
     }
 
     return const <dynamic>[];
-  }
-
-  String _dependentNameFromJson(Map<String, dynamic> json) {
-    final String relationName = (json['relationName'] ?? '').toString().trim();
-    if (relationName.isNotEmpty) return relationName;
-
-    final String dependentName = (json['dependentName'] ?? '')
-        .toString()
-        .trim();
-    if (dependentName.isNotEmpty) return dependentName;
-
-    final String name = (json['name'] ?? '').toString().trim();
-    return name;
   }
 
   @override
@@ -225,7 +171,7 @@ class _DonorsListPageState extends State<DonorsListPage> {
 
     switch (action) {
       case _DonorMenuAction.updateProfile:
-        page = UpdateProfilePage(donorName: donor.name);
+        page = UpdateProfilePage(donorName: donor.name, donorId: donor.donorId);
       case _DonorMenuAction.myReceipts:
         page = MyReceiptsPage(donorName: donor.name);
       case _DonorMenuAction.dependent:
@@ -265,6 +211,7 @@ class _DonorListItem {
       addressLines: _parseAddressLines(json),
       email: json['email']?.toString() ?? '',
       phone: json['mobileNo']?.toString() ?? json['phone']?.toString() ?? '',
+      dependents: _parseDependents(json),
       avatarUrl: null,
     );
   }
@@ -310,6 +257,39 @@ class _DonorListItem {
       lines.add(addressLine);
     }
     return lines.isEmpty ? ['Address not provided'] : lines;
+  }
+
+  static List<String> _parseDependents(Map<String, dynamic> json) {
+    final Object? value =
+        json['dependents'] ?? json['dependentList'] ?? json['dependentDetails'];
+
+    if (value is! List) {
+      return const <String>[];
+    }
+
+    return value
+        .whereType<Map<String, dynamic>>()
+        .map((entry) {
+          final String name =
+              (entry['relationName'] ??
+                      entry['dependentName'] ??
+                      entry['name'] ??
+                      '')
+                  .toString()
+                  .trim();
+          final String relation =
+              (entry['relationshipToDonor'] ?? entry['relation'] ?? '')
+                  .toString()
+                  .trim();
+
+          if (name.isEmpty) {
+            return '';
+          }
+
+          return relation.isEmpty ? name : '$name ($relation)';
+        })
+        .where((entry) => entry.isNotEmpty)
+        .toList();
   }
 
   final int donorId;

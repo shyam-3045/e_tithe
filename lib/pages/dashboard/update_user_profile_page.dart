@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../common/constants/app_colors.dart';
+import '../../common/services/auth_service.dart';
 import '../../common/widgets/app_form_text_field.dart';
 import '../../common/widgets/common_alert.dart';
 import '../../common/widgets/primary_button.dart';
@@ -16,7 +17,7 @@ class UpdateUserProfilePage extends StatefulWidget {
 class _UpdateUserProfilePageState extends State<UpdateUserProfilePage> {
   final _formKey = GlobalKey<FormState>();
 
-  final _nameController = TextEditingController(text: 'Wilson Behera');
+  final _nameController = TextEditingController();
   final _flatBuildingController = TextEditingController(
     text: 'S3M1 - 66 RDA Colony',
   );
@@ -26,17 +27,26 @@ class _UpdateUserProfilePageState extends State<UpdateUserProfilePage> {
   final _stateController = TextEditingController(text: 'Odisha');
   final _mobileController = TextEditingController(text: '8596004610');
   final _whatsAppController = TextEditingController(text: '8596004610');
-  final _emailController = TextEditingController(
-    text: 'wilsonbehera@gmail.com',
-  );
+  final _emailController = TextEditingController();
 
   bool _isSaving = false;
 
   @override
   void initState() {
     super.initState();
+    _loadProfileFromSession();
     // TODO(API): Load current user profile and prefill controllers.
     // await _loadProfileFromApi();
+  }
+
+  Future<void> _loadProfileFromSession() async {
+    final AuthSession? session = await AuthService.instance.currentSession();
+    if (!mounted || session == null) return;
+
+    setState(() {
+      _nameController.text = (session.userName ?? '').trim();
+      _emailController.text = (session.email ?? '').trim();
+    });
   }
 
   @override

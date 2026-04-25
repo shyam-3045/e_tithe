@@ -153,6 +153,14 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
     );
   }
 
+  void _refreshReceipts() {
+    setState(() {
+      _isLoading = true;
+      _loadError = null;
+    });
+    _loadReceipts();
+  }
+
   void _openReceipt(_ReceiptItem item) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
@@ -197,6 +205,11 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
       appBar: AppBar(
         title: const Text('Receipts'),
         actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _refreshReceipts,
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+          ),
           IconButton(
             tooltip: 'Search receipt',
             onPressed: _openSearch,
@@ -268,13 +281,7 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
                       ),
                       const SizedBox(height: 16),
                       FilledButton(
-                        onPressed: () {
-                          setState(() {
-                            _isLoading = true;
-                            _loadError = null;
-                          });
-                          _loadReceipts();
-                        },
+                        onPressed: _refreshReceipts,
                         child: const Text('Try Again'),
                       ),
                     ],

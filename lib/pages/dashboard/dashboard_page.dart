@@ -14,110 +14,156 @@ import 'update_user_profile_page.dart';
 import 'widgets/dashboard_action_card.dart';
 import 'widgets/dashboard_hero_carousel.dart';
 
-class DashboardPage extends StatelessWidget {
+class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
-  static const String _userName = 'Wilson Behera';
-  static const String _role = 'Field Officer';
+  @override
+  State<DashboardPage> createState() => _DashboardPageState();
+}
+
+class _DashboardPageState extends State<DashboardPage> {
+  late final Future<AuthSession?> _sessionFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _sessionFuture = AuthService.instance.currentSession();
+  }
+
+  String _displayName(AuthSession? session) {
+    final String name = (session?.userName ?? '').trim();
+    if (name.isNotEmpty) return name;
+
+    final String email = (session?.email ?? '').trim();
+    if (email.isNotEmpty) return email;
+
+    return 'User';
+  }
+
+  String _displayRole(AuthSession? session) {
+    switch (session?.userTypeId) {
+      case 1:
+        return 'Field Officer';
+      case 2:
+        return 'Admin';
+      case 3:
+        return 'Manager';
+      default:
+        return 'User';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: const SystemUiOverlayStyle(
-        statusBarColor: AppColors.primaryPurple,
-        statusBarIconBrightness: Brightness.light,
-        statusBarBrightness: Brightness.dark,
-      ),
-      child: Scaffold(
-        drawer: const _DashboardDrawer(userName: _userName, role: _role),
-        appBar: AppBar(
-          toolbarHeight: 78,
-          titleSpacing: 0,
-          title: const Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text('e-Tithe'),
-              SizedBox(height: 2),
-              Text(
-                'Wilson Behera  -  [Field Officer]',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 17,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ),
-        body: SafeArea(
-          top: false,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final double maxWidth = constraints.maxWidth > 720 ? 680 : 720;
+    return FutureBuilder<AuthSession?>(
+      future: _sessionFuture,
+      builder: (context, snapshot) {
+        final AuthSession? session = snapshot.data;
+        final String userName = _displayName(session);
+        final String role = _displayRole(session);
 
-              return SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: maxWidth),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const DashboardHeroCarousel(),
-                        const SizedBox(height: 28),
-                        GridView.count(
-                          crossAxisCount: constraints.maxWidth >= 620 ? 4 : 2,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          crossAxisSpacing: 18,
-                          mainAxisSpacing: 18,
-                          childAspectRatio: 1.72,
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: const SystemUiOverlayStyle(
+            statusBarColor: AppColors.primaryPurple,
+            statusBarIconBrightness: Brightness.light,
+            statusBarBrightness: Brightness.dark,
+          ),
+          child: Scaffold(
+            drawer: _DashboardDrawer(userName: userName, role: role),
+            appBar: AppBar(
+              toolbarHeight: 78,
+              titleSpacing: 0,
+              title: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('e-Tithe'),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$userName  -  [$role]',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            body: SafeArea(
+              top: false,
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final double maxWidth = constraints.maxWidth > 720
+                      ? 680
+                      : 720;
+
+                  return SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
+                    child: Center(
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: maxWidth),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            DashboardActionCard(
-                              title: 'New Donor',
-                              icon: Icons.person_add_alt_1_rounded,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const NewDonorPage(),
+                            const DashboardHeroCarousel(),
+                            const SizedBox(height: 28),
+                            GridView.count(
+                              crossAxisCount: constraints.maxWidth >= 620
+                                  ? 4
+                                  : 2,
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              crossAxisSpacing: 18,
+                              mainAxisSpacing: 18,
+                              childAspectRatio: 1.72,
+                              children: [
+                                DashboardActionCard(
+                                  title: 'New Donor',
+                                  icon: Icons.person_add_alt_1_rounded,
+                                  onTap: () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => const NewDonorPage(),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                            DashboardActionCard(
-                              title: 'Donors',
-                              icon: Icons.volunteer_activism_rounded,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const DonorsListPage(),
+                                DashboardActionCard(
+                                  title: 'Donors',
+                                  icon: Icons.volunteer_activism_rounded,
+                                  onTap: () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => const DonorsListPage(),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                            DashboardActionCard(
-                              title: 'Receipts',
-                              icon: Icons.receipt_long_rounded,
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute<void>(
-                                  builder: (_) => const MyReceiptsPage(),
+                                DashboardActionCard(
+                                  title: 'Receipts',
+                                  icon: Icons.receipt_long_rounded,
+                                  onTap: () => Navigator.of(context).push(
+                                    MaterialPageRoute<void>(
+                                      builder: (_) => const MyReceiptsPage(),
+                                    ),
+                                  ),
                                 ),
-                              ),
-                            ),
-                            DashboardActionCard(
-                              title: 'Notifications',
-                              icon: Icons.notifications_active_rounded,
-                              onTap: () =>
-                                  _showComingSoon(context, 'Notifications'),
+                                DashboardActionCard(
+                                  title: 'Notifications',
+                                  icon: Icons.notifications_active_rounded,
+                                  onTap: () =>
+                                      _showComingSoon(context, 'Notifications'),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                ),
-              );
-            },
+                  );
+                },
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

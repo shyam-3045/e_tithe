@@ -1,12 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../../common/constants/app_colors.dart';
+import '../../common/services/auth_service.dart';
+import '../../common/services/donor_service.dart';
+import '../../common/services/receipt_service.dart';
+import '../../common/services/user_service.dart';
 import '../../common/widgets/common_alert.dart';
 
 class NewReceiptPage extends StatefulWidget {
-  const NewReceiptPage({super.key, required this.donorName});
+  const NewReceiptPage({
+    super.key,
+    required this.donorName,
+    required this.donorId,
+  });
 
   final String donorName;
+  final int donorId;
 
   @override
   State<NewReceiptPage> createState() => _NewReceiptPageState();
@@ -14,13 +23,14 @@ class NewReceiptPage extends StatefulWidget {
 
 class _NewReceiptPageState extends State<NewReceiptPage> {
   late String _selectedMonth;
+  late int _selectedYear;
+  final TextEditingController _notesController = TextEditingController();
 
   final List<_ReceiptPaymentEntry> _payments = <_ReceiptPaymentEntry>[];
 
-  // TODO(API): Replace these sample donor fields with API data.
-  late final String _donorDisplayName;
-  final List<String> _addressLines = ['Balangir', 'Balangir', 'Northern Division'];
-  final String _pincode = '767001';
+  late String _donorDisplayName;
+  List<String> _addressLines = <String>[];
+  String _pincode = '';
 
   static const List<String> _months = <String>[
     'JANUARY',
@@ -75,30 +85,65 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     return _months[monthIndex];
   }
 
+  List<int> _yearOptions() {
+    final int currentYear = DateTime.now().year;
+    return List<int>.generate(11, (index) => currentYear - 5 + index);
+  }
+
+  Future<void> _loadDonorHeader() async {
+    try {
+      final DonorDetails donor = await DonorService.instance.fetchDonorById(
+        widget.donorId,
+      );
+      if (!mounted) return;
+
+      final List<String> addressLines = <String>[
+        donor.street,
+        donor.city,
+        donor.district,
+        donor.state,
+      ].where((line) => line.trim().isNotEmpty).toList();
+
+      setState(() {
+        _donorDisplayName = donor.name.toUpperCase();
+        _addressLines = addressLines;
+        _pincode = donor.pincode;
+      });
+    } catch (_) {
+      // Keep fallback donor header when donor detail API is unavailable.
+    }
+  }
+
   @override
   void initState() {
     super.initState();
 
     _selectedMonth = _currentMonthLabel();
+    _selectedYear = DateTime.now().year;
 
-    _donorDisplayName = 'MR. ${widget.donorName}'.toUpperCase();
-
-    // TODO(API): Load donor address/profile for receipt header.
-    // await _loadDonorReceiptHeader();
+    _donorDisplayName = widget.donorName.toUpperCase();
+    _addressLines = <String>[];
+    _pincode = '';
+    _loadDonorHeader();
 
     // TODO(API): Load fund type list.
     // await _loadFundTypes();
   }
 
-  double get _totalAmount => _payments.fold<double>(
-        0,
-        (sum, item) => sum + item.amount,
-      );
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  double get _totalAmount =>
+      _payments.fold<double>(0, (sum, item) => sum + item.amount);
 
   Future<void> _openAddPayDialog() async {
     final Set<String> takenFunds = _payments.map((e) => e.fundType).toSet();
-    final List<String> availableFunds =
-        _fundTypes.where((f) => !takenFunds.contains(f)).toList();
+    final List<String> availableFunds = _fundTypes
+        .where((f) => !takenFunds.contains(f))
+        .toList();
 
     if (availableFunds.isEmpty) {
       await CommonAlert.showInfo(
@@ -109,14 +154,15 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       return;
     }
 
-    final _ReceiptPaymentEntry? created = await showDialog<_ReceiptPaymentEntry>(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => _AmountDetailDialog(
-        fundTypes: _fundTypes,
-        takenFundTypes: takenFunds,
-      ),
-    );
+    final _ReceiptPaymentEntry? created =
+        await showDialog<_ReceiptPaymentEntry>(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => _AmountDetailDialog(
+            fundTypes: _fundTypes,
+            takenFundTypes: takenFunds,
+          ),
+        );
 
     if (created == null) return;
 
@@ -136,6 +182,10 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       errors.add('Please add at least one payment (Add Pay).');
     }
 
+    if (_notesController.text.trim().isEmpty) {
+      errors.add('Please enter Notes.');
+    }
+
     if (errors.isNotEmpty) {
       await CommonAlert.showInfo(
         context,
@@ -153,8 +203,12 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => _ReceiptSignaturePage(
+          donorId: widget.donorId,
+          donorName: widget.donorName,
           donorDisplayName: _donorDisplayName,
           month: _selectedMonth,
+          year: _selectedYear,
+          notes: _notesController.text.trim(),
           payments: List<_ReceiptPaymentEntry>.unmodifiable(_payments),
           totalAmount: _totalAmount,
         ),
@@ -172,7 +226,9 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Text('Discard receipt?'),
           content: const Text('Your added payment details will be lost.'),
           actions: [
@@ -212,9 +268,9 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       _payments.removeAt(index);
     });
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Payment removed.')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Payment removed.')));
   }
 
   Future<void> _handleClearReceipt() async {
@@ -229,7 +285,9 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       context: context,
       builder: (context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           title: const Text('Clear receipt?'),
           content: const Text('This will remove all added payments.'),
           actions: [
@@ -259,6 +317,8 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       setState(() {
         _payments.clear();
         _selectedMonth = _currentMonthLabel();
+        _selectedYear = DateTime.now().year;
+        _notesController.clear();
       });
     }
   }
@@ -295,7 +355,7 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
               ),
               const SizedBox(height: 22),
               const Text(
-                'Month Of',
+                'Month & Year Of',
                 style: TextStyle(
                   color: AppColors.textGrey,
                   fontSize: 18,
@@ -303,60 +363,110 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
                 ),
               ),
               const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: _selectedMonth,
-                isExpanded: true,
-                decoration: _fieldDecoration(
-                  label: '',
-                  icon: Icons.calendar_month_rounded,
-                ),
-                dropdownColor: AppColors.surface,
-                icon: const Icon(
-                  Icons.keyboard_arrow_down_rounded,
-                  color: AppColors.textGrey,
-                ),
-                selectedItemBuilder: (context) {
-                  return _months
-                      .map(
-                        (month) => Align(
-                          alignment: Alignment.centerLeft,
-                          child: Text(
-                            month,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: AppColors.textDark,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+              Column(
+                children: [
+                  DropdownButtonFormField<String>(
+                    value: _selectedMonth,
+                    isExpanded: true,
+                    decoration: _fieldDecoration(
+                      label: 'Month',
+                      icon: Icons.calendar_month_rounded,
+                    ),
+                    dropdownColor: AppColors.surface,
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textGrey,
+                    ),
+                    selectedItemBuilder: (context) {
+                      return _months
+                          .map(
+                            (month) => Align(
+                              alignment: Alignment.centerLeft,
+                              child: Text(
+                                month,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  color: AppColors.textDark,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList();
+                    },
+                    items: _months
+                        .map(
+                          (month) => DropdownMenuItem<String>(
+                            value: month,
+                            child: Text(
+                              month,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textDark,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ),
-                        ),
-                      )
-                      .toList();
-                },
-                items: _months
-                    .map(
-                      (month) => DropdownMenuItem<String>(
-                        value: month,
-                        child: Text(
-                          month,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: AppColors.textDark,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _selectedMonth = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(
+                    value: _selectedYear,
+                    isExpanded: true,
+                    decoration: _fieldDecoration(
+                      label: 'Year',
+                      icon: Icons.event_rounded,
+                    ),
+                    dropdownColor: AppColors.surface,
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textGrey,
+                    ),
+                    items: _yearOptions()
+                        .map(
+                          (year) => DropdownMenuItem<int>(
+                            value: year,
+                            child: Text(
+                              year.toString(),
+                              style: const TextStyle(
+                                color: AppColors.textDark,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ),
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  if (value == null) return;
-                  setState(() {
-                    _selectedMonth = value;
-                  });
-                },
+                        )
+                        .toList(),
+                    onChanged: (value) {
+                      if (value == null) return;
+                      setState(() {
+                        _selectedYear = value;
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: _notesController,
+                    decoration: _fieldDecoration(
+                      label: 'Notes',
+                      icon: Icons.notes_rounded,
+                    ),
+                    minLines: 2,
+                    maxLines: 3,
+                    textInputAction: TextInputAction.done,
+                  ),
+                ],
               ),
               const SizedBox(height: 18),
               Text(
@@ -616,10 +726,7 @@ class _ReceiptBottomBar extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              AppColors.primaryPurple,
-              AppColors.richPurple,
-            ],
+            colors: [AppColors.primaryPurple, AppColors.richPurple],
           ),
           boxShadow: [
             BoxShadow(
@@ -828,29 +935,25 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
                       )
                       .toList();
                 },
-                items: widget.fundTypes
-                    .map(
-                      (fund) {
-                        final bool isTaken = widget.takenFundTypes.contains(fund);
-                        return DropdownMenuItem<String>(
-                          value: fund,
-                          enabled: !isTaken,
-                          child: Text(
-                            fund,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              color: isTaken
-                                  ? AppColors.textGrey.withOpacity(0.65)
-                                  : AppColors.textDark,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        );
-                      },
-                    )
-                    .toList(),
+                items: widget.fundTypes.map((fund) {
+                  final bool isTaken = widget.takenFundTypes.contains(fund);
+                  return DropdownMenuItem<String>(
+                    value: fund,
+                    enabled: !isTaken,
+                    child: Text(
+                      fund,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: isTaken
+                            ? AppColors.textGrey.withOpacity(0.65)
+                            : AppColors.textDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  );
+                }).toList(),
                 onChanged: (value) {
                   if (value == null) return;
                   setState(() {
@@ -897,9 +1000,7 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
                           activeColor: AppColors.statusBarPink,
                           title: Text(
                             mode.label,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w700),
                           ),
                           onChanged: (value) {
                             if (value == null) return;
@@ -944,14 +1045,22 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
 
 class _ReceiptSignaturePage extends StatefulWidget {
   const _ReceiptSignaturePage({
+    required this.donorId,
+    required this.donorName,
     required this.donorDisplayName,
     required this.month,
+    required this.year,
+    required this.notes,
     required this.payments,
     required this.totalAmount,
   });
 
+  final int donorId;
+  final String donorName;
   final String donorDisplayName;
   final String month;
+  final int year;
+  final String notes;
   final List<_ReceiptPaymentEntry> payments;
   final double totalAmount;
 
@@ -961,27 +1070,130 @@ class _ReceiptSignaturePage extends StatefulWidget {
 
 class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
   final _SignatureController _signatureController = _SignatureController();
+  bool _isSubmitting = false;
 
-  Future<void> _handleSubmit() async {
-    if (!_signatureController.hasSignature) {
-      await CommonAlert.showInfo(
-        context,
-        title: 'Signature required',
-        message: 'Please get donor signature before submitting.',
-      );
-      return;
+  String _dateOnly(DateTime dateTime) {
+    final DateTime local = dateTime.toLocal();
+    final String month = local.month.toString().padLeft(2, '0');
+    final String day = local.day.toString().padLeft(2, '0');
+    return '${local.year}-$month-$day';
+  }
+
+  Future<UserDetails> _resolveCurrentUser() async {
+    final AuthSession? session = await AuthService.instance.currentSession();
+    final int userId = int.tryParse(session?.userId ?? '') ?? 0;
+    if (userId <= 0) {
+      throw Exception('Logged-in user ID not found. Please login again.');
     }
 
-    // TODO(API): Submit receipt + signature points/image.
-    // await _submitReceipt(signature: _signatureController.points);
+    return UserService.instance.fetchUserById(userId);
+  }
 
-    if (!mounted) return;
+  String _combinedPaymentMode() {
+    final Set<String> modes = widget.payments.map((p) => p.mode.label).toSet();
+    if (modes.length == 1) {
+      return modes.first;
+    }
+    return 'MIXED';
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Hook submit API on this step.')),
+  Future<Map<String, dynamic>> _buildReceiptPayload() async {
+    final UserDetails user = await _resolveCurrentUser();
+    final DonorDetails donor = await DonorService.instance.fetchDonorById(
+      widget.donorId,
     );
 
-    Navigator.of(context).pop();
+    final DateTime now = DateTime.now();
+    final String utcNow = now.toUtc().toIso8601String();
+    final String paymentMonth = '${widget.month}-${widget.year}';
+    final String paymentMode = _combinedPaymentMode();
+    final int totalAmount = widget.totalAmount.round();
+    final String createdBy = user.userName;
+    final String modifiedBy = user.userName;
+    final String receiptNo = 'APP-${now.millisecondsSinceEpoch}';
+    final String notes = widget.notes.trim();
+    final String companyName = 'N/A';
+    final String regionName = user.regionId.toString();
+    final String repType = user.userTypeId.toString();
+    final String repName = user.userName;
+
+    return <String, dynamic>{
+      'ReceiptID': 0,
+      'Amount': totalAmount,
+      'Cancel': 0,
+      'CompanyID': 0,
+      'RegionID': user.regionId,
+      'RepID': user.userId,
+      'Notes': notes,
+      'PaymentMonth': paymentMonth,
+      'SignURL': 'signed-from-mobile',
+      'Deleted': false,
+      'CreatedOn': utcNow,
+      'CreatedBy': createdBy,
+      'ModifiedOn': utcNow,
+      'ModifiedBy': modifiedBy,
+      'ReceiptDate': _dateOnly(now),
+      'ReceiptNo': receiptNo,
+      'DonorID': donor.donorId,
+      'PaymentMode': paymentMode,
+      'RegionName': regionName,
+      'CompanyName': companyName,
+      'RepType': repType,
+      'RepName': repName,
+      'DonorName': donor.name,
+      'ReceiptLines': widget.payments.map((item) {
+        return <String, dynamic>{
+          'ReceiptLineID': 0,
+          'ReceiptID': 0,
+          'Amount': item.amount.round(),
+          'BankName': 'N/A',
+          'ChequeDate': utcNow,
+          'ChequeNo': 'N/A',
+          'FundID': 0,
+          'FundName': item.fundType,
+          'PaymentMode': item.mode.label,
+          'Deleted': false,
+          'CreatedOn': utcNow,
+          'CreatedBy': createdBy,
+          'ModifiedOn': utcNow,
+          'ModifiedBy': modifiedBy,
+        };
+      }).toList(),
+    };
+  }
+
+  Future<void> _handleSubmit() async {
+    if (_isSubmitting) return;
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final Map<String, dynamic> payload = await _buildReceiptPayload();
+      await ReceiptService.instance.createReceipt(payload: payload);
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Receipt added successfully.')),
+      );
+
+      Navigator.of(context).pop();
+      Navigator.of(context).pop();
+    } catch (error) {
+      if (!mounted) return;
+      await CommonAlert.showInfo(
+        context,
+        title: 'Add receipt failed',
+        message: error.toString(),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
   }
 
   void _handleClearSignature() {
@@ -1006,7 +1218,8 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
         animation: _signatureController,
         builder: (context, _) {
           return _SignatureBottomBar(
-            canSubmit: _signatureController.hasSignature,
+            canSubmit: true,
+            isSubmitting: _isSubmitting,
             onClear: _handleClearSignature,
             onBack: _handleBack,
             onSubmit: _handleSubmit,
@@ -1036,7 +1249,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Month: ${widget.month}',
+                      'Month: ${widget.month} ${widget.year}',
                       style: const TextStyle(
                         color: AppColors.textGrey,
                         fontWeight: FontWeight.w800,
@@ -1122,12 +1335,14 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
 class _SignatureBottomBar extends StatelessWidget {
   const _SignatureBottomBar({
     required this.canSubmit,
+    required this.isSubmitting,
     required this.onClear,
     required this.onBack,
     required this.onSubmit,
   });
 
   final bool canSubmit;
+  final bool isSubmitting;
   final VoidCallback onClear;
   final VoidCallback onBack;
   final VoidCallback onSubmit;
@@ -1140,10 +1355,7 @@ class _SignatureBottomBar extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              AppColors.primaryPurple,
-              AppColors.richPurple,
-            ],
+            colors: [AppColors.primaryPurple, AppColors.richPurple],
           ),
           boxShadow: [
             BoxShadow(
@@ -1168,12 +1380,14 @@ class _SignatureBottomBar extends StatelessWidget {
               onTap: onBack,
             ),
             Opacity(
-              opacity: canSubmit ? 1 : 0.55,
+              opacity: canSubmit && !isSubmitting ? 1 : 0.55,
               child: IgnorePointer(
-                ignoring: !canSubmit,
+                ignoring: !canSubmit || isSubmitting,
                 child: _BottomAction(
-                  label: 'Submit',
-                  icon: Icons.check_circle_outline_rounded,
+                  label: isSubmitting ? 'Saving...' : 'Submit',
+                  icon: isSubmitting
+                      ? Icons.hourglass_top_rounded
+                      : Icons.check_circle_outline_rounded,
                   onTap: onSubmit,
                 ),
               ),
@@ -1209,10 +1423,7 @@ class _SignatureController extends ChangeNotifier {
 }
 
 class _SignaturePad extends StatefulWidget {
-  const _SignaturePad({
-    required this.controller,
-    required this.height,
-  });
+  const _SignaturePad({required this.controller, required this.height});
 
   final _SignatureController controller;
   final double height;
@@ -1315,37 +1526,22 @@ InputDecoration _fieldDecoration({
     ),
     filled: true,
     fillColor: AppColors.surface,
-    prefixIcon: Icon(
-      icon,
-      color: AppColors.iconPurple,
-    ),
+    prefixIcon: Icon(icon, color: AppColors.iconPurple),
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(
-        color: AppColors.borderGrey,
-        width: 1.2,
-      ),
+      borderSide: const BorderSide(color: AppColors.borderGrey, width: 1.2),
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(
-        color: AppColors.primaryPurple,
-        width: 1.6,
-      ),
+      borderSide: const BorderSide(color: AppColors.primaryPurple, width: 1.6),
     ),
     errorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(
-        color: Colors.redAccent,
-        width: 1.2,
-      ),
+      borderSide: const BorderSide(color: Colors.redAccent, width: 1.2),
     ),
     focusedErrorBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),
-      borderSide: const BorderSide(
-        color: Colors.redAccent,
-        width: 1.4,
-      ),
+      borderSide: const BorderSide(color: Colors.redAccent, width: 1.4),
     ),
     contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
   );

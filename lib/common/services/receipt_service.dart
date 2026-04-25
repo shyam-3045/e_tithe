@@ -23,11 +23,16 @@ class ReceiptRecord {
 
   factory ReceiptRecord.fromJson(Map<String, dynamic> json) {
     final DateTime date = _parseDate(
-      json['date'] ?? json['receiptDate'] ?? json['createdAt'] ?? json['createdOn'],
+      json['date'] ??
+          json['receiptDate'] ??
+          json['createdAt'] ??
+          json['createdOn'],
     );
 
     return ReceiptRecord(
-      receiptId: _parseInt(json['receiptId'] ?? json['receiptID'] ?? json['id']),
+      receiptId: _parseInt(
+        json['receiptId'] ?? json['receiptID'] ?? json['id'],
+      ),
       receiptNo: _string(
         json['receiptNo'] ??
             json['receiptNumber'] ??
@@ -42,14 +47,28 @@ class ReceiptRecord {
       ),
       addressLines: _parseAddressLines(json),
       pincode: _string(json['pincode'] ?? json['pinCode'] ?? json['zipcode']),
-      monthLabel: _string(json['monthLabel'] ?? json['month'] ?? _monthLabel(date)),
+      monthLabel: _string(
+        json['monthLabel'] ?? json['month'] ?? _monthLabel(date),
+      ),
       paymentMode: _string(
-        json['paymentMode'] ?? json['mode'] ?? json['paymentType'] ?? json['payMode'],
+        json['paymentMode'] ??
+            json['mode'] ??
+            json['paymentType'] ??
+            json['payMode'],
         fallback: 'BANK',
       ),
-      amount: _parseDouble(json['amount'] ?? json['receiptAmount'] ?? json['totalAmount']),
-      fundType: _string(json['fundType'] ?? json['particulars'] ?? json['purpose'], fallback: 'General Donation'),
-      isCancelled: _parseBool(json['isCancelled'] ?? json['cancelled'] ?? json['isActive']) ?? false,
+      amount: _parseDouble(
+        json['amount'] ?? json['receiptAmount'] ?? json['totalAmount'],
+      ),
+      fundType: _string(
+        json['fundType'] ?? json['particulars'] ?? json['purpose'],
+        fallback: 'General Donation',
+      ),
+      isCancelled:
+          _parseBool(
+            json['isCancelled'] ?? json['cancelled'] ?? json['isActive'],
+          ) ??
+          false,
     );
   }
 
@@ -95,7 +114,8 @@ class ReceiptRecord {
   }
 
   static List<String> _parseAddressLines(Map<String, dynamic> json) {
-    final Object? raw = json['addressLines'] ?? json['address'] ?? json['fullAddress'];
+    final Object? raw =
+        json['addressLines'] ?? json['address'] ?? json['fullAddress'];
     if (raw is List) {
       final List<String> lines = raw
           .whereType<String>()
@@ -112,7 +132,14 @@ class ReceiptRecord {
     }
 
     final List<String> lines = [];
-    for (final String key in ['addressLine1', 'addressLine2', 'street', 'area', 'city', 'district']) {
+    for (final String key in [
+      'addressLine1',
+      'addressLine2',
+      'street',
+      'area',
+      'city',
+      'district',
+    ]) {
       final String value = _string(json[key]);
       if (value.isNotEmpty) lines.add(value);
     }
@@ -150,9 +177,48 @@ class ReceiptService {
 
   final http.Client _client;
 
+  Future<Map<String, dynamic>> createReceipt({
+    required Map<String, dynamic> payload,
+  }) async {
+    final Uri uri = ApiConfig.uri(ApiEndpoints.receipt);
+    final Map<String, String> headers = await AuthService.instance
+        .authenticatedJsonHeaders();
+
+    print('[API] URL: $uri');
+    print('[API] Payload: ${jsonEncode(payload)}');
+
+    final http.Response response = await _client.post(
+      uri,
+      headers: headers,
+      body: jsonEncode(payload),
+    );
+
+    print('[API] Response: ${response.statusCode} ${response.body}');
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        _extractErrorMessage(response.body) ??
+            'Failed to add receipt. Please try again.',
+      );
+    }
+
+    final String body = response.body.trim();
+    if (body.isEmpty) {
+      return <String, dynamic>{};
+    }
+
+    final Object decoded = jsonDecode(body);
+    if (decoded is Map<String, dynamic>) {
+      return decoded;
+    }
+
+    return <String, dynamic>{'data': decoded};
+  }
+
   Future<List<ReceiptRecord>> fetchReceipts() async {
     final Uri uri = ApiConfig.uri(ApiEndpoints.receipt);
-    final Map<String, String> headers = await AuthService.instance.authenticatedJsonHeaders();
+    final Map<String, String> headers = await AuthService.instance
+        .authenticatedJsonHeaders();
 
     print('[API] URL: $uri');
     print('[API] Payload: N/A');
@@ -176,9 +242,48 @@ class ReceiptService {
   List<dynamic> _extractList(Object decoded) {
     if (decoded is List) return decoded;
     if (decoded is Map<String, dynamic>) {
-      final Object? data = decoded['data'] ?? decoded['items'] ?? decoded['result'];
+      final Object? data =
+          decoded['data'] ?? decoded['items'] ?? decoded['result'];
       if (data is List) return data;
     }
     return const <dynamic>[];
+  }
+
+  String? _extractErrorMessage(String body) {
+    final String trimmed = body.trim();
+    if (trimmed.isEmpty) {
+      return null;
+    }
+
+    try {
+      final Object decoded = jsonDecode(trimmed);
+      if (decoded is! Map<String, dynamic>) {
+        return trimmed;
+      }
+
+      final Object? errorsObj = decoded['errors'];
+      if (errorsObj is Map<String, dynamic>) {
+        final List<String> messages = <String>[];
+        errorsObj.forEach((key, value) {
+          if (value is List && value.isNotEmpty) {
+            messages.add('$key: ${value.first}');
+          } else if (value != null) {
+            messages.add('$key: $value');
+          }
+        });
+        if (messages.isNotEmpty) {
+          return messages.join('\n');
+        }
+      }
+
+      final Object? title = decoded['title'];
+      if (title != null && title.toString().trim().isNotEmpty) {
+        return title.toString();
+      }
+    } catch (_) {
+      return trimmed;
+    }
+
+    return null;
   }
 }

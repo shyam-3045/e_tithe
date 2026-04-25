@@ -4,6 +4,7 @@ class ApiEndpoints {
   static const String login = '/api/Auth/login';
   static const String donor = '/api/Donor';
   static String donorById(int donorId) => '/api/Donor/$donorId';
+  static String userById(int userId) => '/api/User/$userId';
   static const String receipt = '/api/Receipt';
 
   // Add upcoming endpoints here as you integrate them.

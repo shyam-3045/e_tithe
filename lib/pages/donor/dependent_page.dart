@@ -31,12 +31,27 @@ class _DependentPageState extends State<DependentPage> {
     return DonorService.instance.fetchDonorById(donorId);
   }
 
+  void _refreshDonor() {
+    setState(() {
+      _donorFuture = _fetchDonor();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final int donorId = widget.donorId ?? 0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Dependent')),
+      appBar: AppBar(
+        title: const Text('Dependent'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _refreshDonor,
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+          ),
+        ],
+      ),
       body: SafeArea(
         child: donorId <= 0
             ? Padding(
@@ -81,9 +96,7 @@ class _DependentPageState extends State<DependentPage> {
                             ),
                             const SizedBox(height: 16),
                             FilledButton(
-                              onPressed: () => setState(() {
-                                _donorFuture = _fetchDonor();
-                              }),
+                              onPressed: _refreshDonor,
                               child: const Text('Try Again'),
                             ),
                           ],

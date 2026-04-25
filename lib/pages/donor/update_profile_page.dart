@@ -213,10 +213,23 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     );
   }
 
+  void _refreshDonor() {
+    _loadDonorFromApi();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Update Donor')),
+      appBar: AppBar(
+        title: const Text('Update Donor'),
+        actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _refreshDonor,
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+          ),
+        ],
+      ),
       bottomNavigationBar: _BottomActionBar(
         onUpdate: _handleUpdate,
         onPhoto: _handlePhoto,

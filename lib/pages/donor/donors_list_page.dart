@@ -78,12 +78,23 @@ class _DonorsListPageState extends State<DonorsListPage> {
     return const <dynamic>[];
   }
 
+  void _refreshDonors() {
+    setState(() {
+      _donorsFuture = _fetchDonors();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Donors'),
         actions: [
+          IconButton(
+            tooltip: 'Refresh',
+            onPressed: _refreshDonors,
+            icon: const Icon(Icons.refresh_rounded, size: 20),
+          ),
           IconButton(
             tooltip: 'Search',
             onPressed: () => CommonAlert.showInfo(
@@ -125,9 +136,7 @@ class _DonorsListPageState extends State<DonorsListPage> {
                     ),
                     const SizedBox(height: 24),
                     FilledButton(
-                      onPressed: () => setState(() {
-                        _donorsFuture = _fetchDonors();
-                      }),
+                      onPressed: _refreshDonors,
                       child: const Text('Try Again'),
                     ),
                   ],
@@ -148,6 +157,11 @@ class _DonorsListPageState extends State<DonorsListPage> {
                 final donor = donors[index];
                 return _DonorCard(
                   donor: donor,
+                  onAddReceipt: () => _handleMenuSelection(
+                    context,
+                    donor: donor,
+                    action: _DonorMenuAction.newReceipt,
+                  ),
                   onMenuSelected: (action) => _handleMenuSelection(
                     context,
                     donor: donor,
@@ -177,7 +191,7 @@ class _DonorsListPageState extends State<DonorsListPage> {
       case _DonorMenuAction.dependent:
         page = DependentPage(donorName: donor.name, donorId: donor.donorId);
       case _DonorMenuAction.newReceipt:
-        page = NewReceiptPage(donorName: donor.name);
+        page = NewReceiptPage(donorName: donor.name, donorId: donor.donorId);
     }
 
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
@@ -303,10 +317,15 @@ class _DonorListItem {
 }
 
 class _DonorCard extends StatelessWidget {
-  const _DonorCard({required this.donor, required this.onMenuSelected});
+  const _DonorCard({
+    required this.donor,
+    required this.onMenuSelected,
+    required this.onAddReceipt,
+  });
 
   final _DonorListItem donor;
   final ValueChanged<_DonorMenuAction> onMenuSelected;
+  final VoidCallback onAddReceipt;
 
   @override
   Widget build(BuildContext context) {
@@ -344,6 +363,8 @@ class _DonorCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 10),
+                  _QuickAddReceiptButton(onTap: onAddReceipt),
+                  const SizedBox(width: 8),
                   _MenuButton(onSelected: onMenuSelected),
                 ],
               ),
@@ -489,6 +510,36 @@ class _DonorCard extends StatelessWidget {
   }
 }
 
+class _QuickAddReceiptButton extends StatelessWidget {
+  const _QuickAddReceiptButton({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Add Receipt',
+      child: Material(
+        color: Colors.white.withOpacity(0.2),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(10),
+          onTap: onTap,
+          child: const SizedBox(
+            width: 34,
+            height: 34,
+            child: Icon(
+              Icons.receipt_long_rounded,
+              color: Colors.white,
+              size: 18,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Avatar extends StatelessWidget {
   const _Avatar({this.avatarUrl});
 
@@ -543,7 +594,7 @@ class _MenuButton extends StatelessWidget {
           ),
           PopupMenuItem(
             value: _DonorMenuAction.newReceipt,
-            child: Text('New Receipt'),
+            child: Text('Add Receipt'),
           ),
         ],
         child: const Center(

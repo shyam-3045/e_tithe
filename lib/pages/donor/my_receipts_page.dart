@@ -330,6 +330,7 @@ class _ReceiptItem {
     required this.amount,
     required this.fundType,
     this.isCancelled = false,
+    this.notes = '',
   });
 
   factory _ReceiptItem.fromRecord(ReceiptRecord record) {
@@ -345,6 +346,7 @@ class _ReceiptItem {
       amount: record.amount,
       fundType: record.fundType,
       isCancelled: record.isCancelled,
+      notes: record.notes.trim(),
     );
   }
 
@@ -367,6 +369,7 @@ class _ReceiptItem {
   final double amount;
   final String fundType;
   final bool isCancelled;
+  final String notes;
 }
 
 enum _ReceiptMode {
@@ -1290,6 +1293,32 @@ class _ReceiptViewPage extends StatelessWidget {
                         ),
                       ),
                     ),
+                    if (receipt.notes.trim().isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Notes',
+                              style: TextStyle(
+                                color: AppColors.textGrey,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              receipt.notes,
+                              style: const TextStyle(
+                                color: AppColors.textGrey,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     const Divider(height: 1),
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),

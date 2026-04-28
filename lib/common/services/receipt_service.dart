@@ -19,6 +19,7 @@ class ReceiptRecord {
     required this.amount,
     required this.fundType,
     required this.isCancelled,
+    this.notes = '',
   });
 
   factory ReceiptRecord.fromJson(Map<String, dynamic> json) {
@@ -69,6 +70,7 @@ class ReceiptRecord {
             json['isCancelled'] ?? json['cancelled'] ?? json['isActive'],
           ) ??
           false,
+      notes: _string(json['notes'] ?? json['note'] ?? json['remarks'] ?? json['message']),
     );
   }
 
@@ -83,6 +85,7 @@ class ReceiptRecord {
   final double amount;
   final String fundType;
   final bool isCancelled;
+  final String notes;
 
   static int _parseInt(Object? value) {
     if (value is int) return value;

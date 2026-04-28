@@ -70,7 +70,9 @@ class ReceiptRecord {
             json['isCancelled'] ?? json['cancelled'] ?? json['isActive'],
           ) ??
           false,
-      notes: _string(json['notes'] ?? json['note'] ?? json['remarks'] ?? json['message']),
+      notes: _string(
+        json['notes'] ?? json['note'] ?? json['remarks'] ?? json['message'],
+      ),
     );
   }
 

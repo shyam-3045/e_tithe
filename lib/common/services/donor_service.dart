@@ -10,6 +10,7 @@ class DonorDetails {
   const DonorDetails({
     required this.donorId,
     required this.name,
+    required this.photo,
     required this.title,
     required this.gender,
     required this.maritalStatus,
@@ -35,6 +36,9 @@ class DonorDetails {
     return DonorDetails(
       donorId: _parseInt(json['donorId'] ?? json['donorID'] ?? json['id']),
       name: _string(json['donorName'] ?? json['name'] ?? json['fullName']),
+      photo: _string(
+        json['photo'] ?? json['Photo'] ?? json['photoUrl'] ?? json['photoPath'],
+      ),
       title: _string(json['title'] ?? json['salutation'], fallback: 'Mr.'),
       gender: _string(json['gender'], fallback: 'Male'),
       maritalStatus: _string(json['maritalStatus'], fallback: 'Married'),
@@ -65,6 +69,7 @@ class DonorDetails {
 
   final int donorId;
   final String name;
+  final String photo;
   final String title;
   final String gender;
   final String maritalStatus;

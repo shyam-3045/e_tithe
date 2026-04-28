@@ -24,6 +24,12 @@
 	<string>????</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<key>NSCameraUsageDescription</key>
+	<string>This app uses the camera to capture donor photos.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>This app uses the photo library to choose donor photos.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>This app can save donor photos to your photo library.</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>UIApplicationSceneManifest</key>

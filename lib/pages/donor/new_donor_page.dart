@@ -1,7 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../common/constants/api_config.dart';
 import '../../common/constants/api_endpoints.dart';
@@ -18,6 +21,7 @@ class NewDonorPage extends StatefulWidget {
 
 class _NewDonorPageState extends State<NewDonorPage> {
   final _formKey = GlobalKey<FormState>();
+  final _imagePicker = ImagePicker();
 
   final _donorNameController = TextEditingController();
   final _birthDateController = TextEditingController();
@@ -45,6 +49,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
   bool _dependentsExpanded = true;
 
   bool _saving = false;
+
+  XFile? _selectedPhoto;
+  Uint8List? _selectedPhotoBytes;
 
   String? _selectedTitle = 'Mr.';
   String? _selectedGender = 'Male';
@@ -98,6 +105,29 @@ class _NewDonorPageState extends State<NewDonorPage> {
     _dependentAgeController.dispose();
 
     super.dispose();
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    final XFile? pickedPhoto = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1600,
+    );
+
+    if (pickedPhoto == null) {
+      return;
+    }
+
+    final Uint8List photoBytes = await pickedPhoto.readAsBytes();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectedPhoto = pickedPhoto;
+      _selectedPhotoBytes = photoBytes;
+    });
   }
 
   Future<void> _pickDate(TextEditingController controller) async {
@@ -207,6 +237,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
     return <String, dynamic>{
       'donorID': 0,
       'donorName': _donorNameController.text.trim(),
+      'photo': _selectedPhoto?.name ?? '',
       'panNumber': _panController.text.trim(),
       'aadhaarNumber': _aadharController.text.trim(),
       'birthDate': _toApiDateString(_parseUiDate(_birthDateController.text)),
@@ -238,6 +269,72 @@ class _NewDonorPageState extends State<NewDonorPage> {
     };
   }
 
+  Future<http.Response> _submitDonor(Map<String, dynamic> payload) async {
+    final Uri uri = ApiConfig.uri(ApiEndpoints.donor);
+    final Map<String, String> headers = await AuthService.instance
+        .authenticatedJsonHeaders();
+    headers.remove('Content-Type');
+
+    final http.MultipartRequest request = http.MultipartRequest('POST', uri)
+      ..headers.addAll(headers);
+
+    payload.forEach((String key, dynamic value) {
+      if (value == null) {
+        return;
+      }
+      request.fields[key] = _stringifyFormValue(value);
+    });
+
+    final Uint8List? photoBytes = _selectedPhotoBytes;
+    final XFile? photoFile = _selectedPhoto;
+    if (photoBytes != null && photoFile != null) {
+      request.files.add(
+        http.MultipartFile.fromBytes(
+          'photoFile',
+          photoBytes,
+          filename: photoFile.name,
+          contentType: _getMimeType(photoFile.name),
+        ),
+      );
+    }
+
+    final http.StreamedResponse streamedResponse = await request.send();
+    return http.Response.fromStream(streamedResponse);
+  }
+
+  String _stringifyFormValue(Object value) {
+    if (value is String) {
+      return value;
+    }
+
+    if (value is num || value is bool) {
+      return value.toString();
+    }
+
+    if (value is Map || value is List) {
+      return jsonEncode(value);
+    }
+
+    return value.toString();
+  }
+
+  MediaType _getMimeType(String filename) {
+    final String lowerName = filename.toLowerCase();
+    if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) {
+      return MediaType('image', 'jpeg');
+    }
+    if (lowerName.endsWith('.png')) {
+      return MediaType('image', 'png');
+    }
+    if (lowerName.endsWith('.gif')) {
+      return MediaType('image', 'gif');
+    }
+    if (lowerName.endsWith('.webp')) {
+      return MediaType('image', 'webp');
+    }
+    return MediaType('image', 'jpeg');
+  }
+
   Future<void> _handleSave() async {
     FocusScope.of(context).unfocus();
 
@@ -267,18 +364,15 @@ class _NewDonorPageState extends State<NewDonorPage> {
     setState(() => _saving = true);
 
     try {
-      final uri = ApiConfig.uri(ApiEndpoints.donor);
       final payload = _buildDonorPayload();
-      final headers = await AuthService.instance.authenticatedJsonHeaders();
+      final Uri uri = ApiConfig.uri(ApiEndpoints.donor);
       print('[API] URL: $uri');
-      print('[API] Payload: ${jsonEncode(payload)}');
-
-      final response = await http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode(payload),
+      print(
+        '[API] Payload: Creating donor with photo (photo size: ${_selectedPhotoBytes?.length ?? 0} bytes)',
       );
-      print('[API] Response: ${response.statusCode} ${response.body}');
+
+      final response = await _submitDonor(payload);
+      print('[API] Response: ${response.statusCode}');
 
       if (!mounted) return;
 
@@ -311,11 +405,37 @@ class _NewDonorPageState extends State<NewDonorPage> {
   }
 
   void _handlePhoto() {
-    // TODO(API): Implement photo capture/upload flow.
-    CommonAlert.showInfo(
-      context,
-      title: 'Photo',
-      message: 'Photo flow can be connected here.',
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_rounded),
+                title: const Text('Take photo'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickPhoto(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded),
+                title: const Text('Choose from gallery'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickPhoto(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -386,6 +506,12 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 16),
+                      _PhotoPickerCard(
+                        imageBytes: _selectedPhotoBytes,
+                        label: _selectedPhoto?.name,
+                        onTap: _handlePhoto,
                       ),
                       const SizedBox(height: 16),
                       _ChoiceGroup(
@@ -944,6 +1070,97 @@ class _ChoiceGroup extends StatelessWidget {
                 .toList(),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _PhotoPickerCard extends StatelessWidget {
+  const _PhotoPickerCard({
+    required this.imageBytes,
+    required this.onTap,
+    this.label,
+  });
+
+  final Uint8List? imageBytes;
+  final String? label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final Widget preview = imageBytes == null
+        ? Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              color: AppColors.lavender.withOpacity(0.55),
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: const Icon(
+              Icons.person_rounded,
+              color: AppColors.primaryPurple,
+              size: 42,
+            ),
+          )
+        : ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Image.memory(
+              imageBytes!,
+              width: 84,
+              height: 84,
+              fit: BoxFit.cover,
+            ),
+          );
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(22),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(22),
+          border: Border.all(color: AppColors.borderGrey),
+        ),
+        child: Row(
+          children: [
+            preview,
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Photo',
+                    style: TextStyle(
+                      color: AppColors.textDark,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    label == null || label!.trim().isEmpty
+                        ? 'Tap to take a photo or pick from gallery'
+                        : label!,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.textGrey,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            const Icon(
+              Icons.photo_camera_outlined,
+              color: AppColors.iconPurple,
+            ),
+          ],
+        ),
       ),
     );
   }

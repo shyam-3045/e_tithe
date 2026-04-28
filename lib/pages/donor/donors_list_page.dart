@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -36,11 +37,10 @@ class _DonorsListPageState extends State<DonorsListPage> {
           .authenticatedJsonHeaders();
 
       print('[API] URL: $uri');
-      print('[API] Payload: N/A');
 
       final http.Response response = await http.get(uri, headers: headers);
 
-      print('[API] Response: ${response.statusCode} ${response.body}');
+      print('[API] Response: ${response.statusCode}');
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw Exception('Failed to fetch donors. Please try again.');
@@ -210,9 +210,25 @@ class _DonorListItem {
     required this.phone,
     this.dependents = const <String>[],
     this.avatarUrl,
+    this.photoBase64,
   });
 
   factory _DonorListItem.fromJson(Map<String, dynamic> json) {
+    final Object? photoRaw =
+        json['photo'] ?? json['Photo'] ?? json['photoUrl'] ?? json['photoPath'];
+    final String photoString = photoRaw?.toString() ?? '';
+
+    String? avatarUrl;
+    String? photoBase64;
+
+    if (photoString.isNotEmpty) {
+      if (_isBase64(photoString)) {
+        photoBase64 = photoString;
+      } else {
+        avatarUrl = _photoUrl(photoString);
+      }
+    }
+
     return _DonorListItem(
       donorId: _parseInt(
         json['donorId'] ?? json['donorID'] ?? json['id'] ?? json['ID'],
@@ -226,7 +242,8 @@ class _DonorListItem {
       email: json['email']?.toString() ?? '',
       phone: json['mobileNo']?.toString() ?? json['phone']?.toString() ?? '',
       dependents: _parseDependents(json),
-      avatarUrl: null,
+      avatarUrl: avatarUrl,
+      photoBase64: photoBase64,
     );
   }
 
@@ -239,6 +256,7 @@ class _DonorListItem {
     String? phone,
     List<String>? dependents,
     String? avatarUrl,
+    String? photoBase64,
   }) {
     return _DonorListItem(
       donorId: donorId ?? this.donorId,
@@ -249,6 +267,7 @@ class _DonorListItem {
       phone: phone ?? this.phone,
       dependents: dependents ?? this.dependents,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      photoBase64: photoBase64 ?? this.photoBase64,
     );
   }
 
@@ -306,6 +325,40 @@ class _DonorListItem {
         .toList();
   }
 
+  static bool _isBase64(String value) {
+    final String trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return false;
+    }
+    if (trimmed.startsWith('data:image')) {
+      return true;
+    }
+    if (trimmed.length < 50) {
+      return false;
+    }
+    try {
+      base64Decode(trimmed);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static String? _photoUrl(Object? value) {
+    final String raw = value?.toString().trim() ?? '';
+    if (raw.isEmpty) {
+      return null;
+    }
+
+    final Uri? uri = Uri.tryParse(raw);
+    if (uri != null && uri.hasScheme) {
+      return raw;
+    }
+
+    final String normalizedPath = raw.startsWith('/') ? raw : '/$raw';
+    return '${ApiConfig.baseUrl}$normalizedPath';
+  }
+
   final int donorId;
   final String name;
   final String membership;
@@ -314,6 +367,7 @@ class _DonorListItem {
   final String phone;
   final List<String> dependents;
   final String? avatarUrl;
+  final String? photoBase64;
 }
 
 class _DonorCard extends StatelessWidget {
@@ -376,7 +430,11 @@ class _DonorCard extends StatelessWidget {
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _Avatar(avatarUrl: donor.avatarUrl),
+                      _Avatar(
+                        name: donor.name,
+                        avatarUrl: donor.avatarUrl,
+                        photoBase64: donor.photoBase64,
+                      ),
                       const SizedBox(width: 14),
                       Expanded(
                         child: Column(
@@ -541,20 +599,61 @@ class _QuickAddReceiptButton extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({this.avatarUrl});
+  const _Avatar({required this.name, this.avatarUrl, this.photoBase64});
 
+  final String name;
   final String? avatarUrl;
+  final String? photoBase64;
+
+  String get _initials {
+    final List<String> parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.isEmpty || parts.first.isEmpty) {
+      return '?';
+    }
+
+    if (parts.length == 1) {
+      return parts.first.substring(0, 1).toUpperCase();
+    }
+
+    final String first = parts.first.substring(0, 1).toUpperCase();
+    final String second = parts.last.substring(0, 1).toUpperCase();
+    return '$first$second';
+  }
+
+  ImageProvider? _getImageProvider() {
+    if (photoBase64 != null && photoBase64!.isNotEmpty) {
+      try {
+        String base64Data = photoBase64!;
+        if (base64Data.startsWith('data:image')) {
+          base64Data = base64Data.split(',').last;
+        }
+        final Uint8List imageBytes = base64Decode(base64Data);
+        return MemoryImage(imageBytes);
+      } catch (_) {
+        return null;
+      }
+    }
+
+    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
+      return NetworkImage(avatarUrl!);
+    }
+
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
     return CircleAvatar(
       radius: 38,
       backgroundColor: AppColors.lavender,
-      foregroundImage: avatarUrl == null ? null : NetworkImage(avatarUrl!),
-      child: const Icon(
-        Icons.person_rounded,
-        color: AppColors.primaryPurple,
-        size: 40,
+      foregroundImage: _getImageProvider(),
+      child: Text(
+        _initials,
+        style: const TextStyle(
+          color: AppColors.primaryPurple,
+          fontSize: 22,
+          fontWeight: FontWeight.w800,
+        ),
       ),
     );
   }

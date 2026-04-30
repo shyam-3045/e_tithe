@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../common/constants/app_colors.dart';
 import '../../common/services/auth_service.dart';
+import '../../common/services/company_service.dart';
 import '../../common/services/donor_service.dart';
 import '../../common/services/receipt_service.dart';
 import '../../common/services/user_service.dart';
@@ -27,6 +28,9 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
   final TextEditingController _notesController = TextEditingController();
 
   final List<_ReceiptPaymentEntry> _payments = <_ReceiptPaymentEntry>[];
+  List<CompanyInfo> _companies = <CompanyInfo>[];
+  int? _selectedCompanyId;
+  bool _isLoadingCompanies = false;
 
   late String _donorDisplayName;
   List<String> _addressLines = <String>[];
@@ -114,6 +118,57 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     }
   }
 
+  Future<void> _loadCompanies() async {
+    setState(() {
+      _isLoadingCompanies = true;
+    });
+
+    try {
+      final List<CompanyInfo> companies = await CompanyService.instance
+          .fetchCompanies();
+      if (!mounted) return;
+
+      setState(() {
+        _companies = companies;
+        if (_companies.isNotEmpty) {
+          final bool hasExisting = _companies.any(
+            (item) => item.companyId == _selectedCompanyId,
+          );
+          if (!hasExisting) {
+            _selectedCompanyId = _companies.first.companyId;
+          }
+        } else {
+          _selectedCompanyId = null;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _companies = <CompanyInfo>[];
+        _selectedCompanyId = null;
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingCompanies = false;
+      });
+    }
+  }
+
+  String get _selectedCompanyName {
+    final int? selectedId = _selectedCompanyId;
+    if (selectedId == null) {
+      return '';
+    }
+
+    for (final CompanyInfo company in _companies) {
+      if (company.companyId == selectedId) {
+        return company.companyName;
+      }
+    }
+    return '';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -125,9 +180,7 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     _addressLines = <String>[];
     _pincode = '';
     _loadDonorHeader();
-
-    // TODO(API): Load fund type list.
-    // await _loadFundTypes();
+    _loadCompanies();
   }
 
   @override
@@ -178,6 +231,10 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       errors.add('Please select Month.');
     }
 
+    if (_selectedCompanyId == null) {
+      errors.add('Please select Company.');
+    }
+
     if (_payments.isEmpty) {
       errors.add('Please add at least one payment (Add Pay).');
     }
@@ -208,6 +265,8 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
           donorDisplayName: _donorDisplayName,
           month: _selectedMonth,
           year: _selectedYear,
+          companyId: _selectedCompanyId!,
+          companyName: _selectedCompanyName,
           notes: _notesController.text.trim(),
           payments: List<_ReceiptPaymentEntry>.unmodifiable(_payments),
           totalAmount: _totalAmount,
@@ -455,6 +514,64 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
                       });
                     },
                   ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(
+                    value:
+                        _companies.any(
+                          (item) => item.companyId == _selectedCompanyId,
+                        )
+                        ? _selectedCompanyId
+                        : null,
+                    isExpanded: true,
+                    decoration: _fieldDecoration(
+                      label: 'Company',
+                      icon: Icons.business_rounded,
+                    ),
+                    dropdownColor: AppColors.surface,
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textGrey,
+                    ),
+                    hint: Text(
+                      _isLoadingCompanies
+                          ? 'Loading companies...'
+                          : 'Select company',
+                      style: TextStyle(
+                        color: AppColors.textGrey.withOpacity(0.9),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    items: _companies
+                        .map(
+                          (company) => DropdownMenuItem<int>(
+                            value: company.companyId,
+                            child: Text(
+                              company.companyName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textDark,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _isLoadingCompanies
+                        ? null
+                        : (value) {
+                            if (value == null) return;
+                            setState(() {
+                              _selectedCompanyId = value;
+                            });
+                          },
+                  ),
+                  if (_isLoadingCompanies)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 8),
+                      child: LinearProgressIndicator(minHeight: 2),
+                    ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _notesController,
@@ -1050,6 +1167,8 @@ class _ReceiptSignaturePage extends StatefulWidget {
     required this.donorDisplayName,
     required this.month,
     required this.year,
+    required this.companyId,
+    required this.companyName,
     required this.notes,
     required this.payments,
     required this.totalAmount,
@@ -1060,6 +1179,8 @@ class _ReceiptSignaturePage extends StatefulWidget {
   final String donorDisplayName;
   final String month;
   final int year;
+  final int companyId;
+  final String companyName;
   final String notes;
   final List<_ReceiptPaymentEntry> payments;
   final double totalAmount;
@@ -1112,7 +1233,9 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     final String modifiedBy = user.userName;
     final String receiptNo = 'APP-${now.millisecondsSinceEpoch}';
     final String notes = widget.notes.trim();
-    final String companyName = 'N/A';
+    final String companyName = widget.companyName.trim().isEmpty
+        ? 'N/A'
+        : widget.companyName.trim();
     final String regionName = user.regionId.toString();
     final String repType = user.userTypeId.toString();
     final String repName = user.userName;
@@ -1121,7 +1244,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
       'ReceiptID': 0,
       'Amount': totalAmount,
       'Cancel': 0,
-      'CompanyID': 0,
+      'CompanyID': widget.companyId,
       'RegionID': user.regionId,
       'RepID': user.userId,
       'Notes': notes,
@@ -1250,6 +1373,14 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
                   children: [
                     Text(
                       'Month: ${widget.month} ${widget.year}',
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Company: ${widget.companyName}',
                       style: const TextStyle(
                         color: AppColors.textGrey,
                         fontWeight: FontWeight.w800,

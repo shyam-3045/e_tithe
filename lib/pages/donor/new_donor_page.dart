@@ -10,6 +10,7 @@ import '../../common/constants/api_config.dart';
 import '../../common/constants/api_endpoints.dart';
 import '../../common/constants/app_colors.dart';
 import '../../common/services/auth_service.dart';
+import '../../common/services/region_service.dart';
 import '../../common/widgets/common_alert.dart';
 
 class NewDonorPage extends StatefulWidget {
@@ -49,6 +50,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
   bool _dependentsExpanded = true;
 
   bool _saving = false;
+  late Future<List<RegionOption>> _regionsFuture;
 
   XFile? _selectedPhoto;
   Uint8List? _selectedPhotoBytes;
@@ -58,6 +60,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
   String? _selectedMaritalStatus = 'Married';
   String? _selectedMembership = 'Member';
   String? _selectedArea;
+  int? _selectedRegionId;
   String? _selectedState = 'Andaman Nicobar';
 
   static const List<String> _titles = ['Mr.', 'Mrs.', 'Ms.', 'Dr.'];
@@ -82,6 +85,12 @@ class _NewDonorPageState extends State<NewDonorPage> {
     'Tamil Nadu',
     'West Bengal',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _regionsFuture = RegionService.instance.fetchRegions();
+  }
 
   @override
   void dispose() {
@@ -246,7 +255,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
           : null,
       'gender': (_selectedGender ?? '').trim(),
       'maritalStatus': (_selectedMaritalStatus ?? '').trim(),
-      'regionID': 0,
+      'regionID': _selectedRegionId ?? 0,
       'areaID': 0,
       'areaLeaderID': 0,
       'promotionStaffID': 0,
@@ -614,6 +623,97 @@ class _NewDonorPageState extends State<NewDonorPage> {
                         },
                       ),
                       const SizedBox(height: 16),
+                      FutureBuilder<List<RegionOption>>(
+                        future: _regionsFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState ==
+                              ConnectionState.waiting) {
+                            return const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: SizedBox(
+                                  height: 20,
+                                  width: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                  ),
+                                ),
+                              ),
+                            );
+                          }
+
+                          if (snapshot.hasError) {
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: AppColors.borderGrey),
+                              ),
+                              child: Text(
+                                'Unable to load regions: ${snapshot.error}',
+                                style: const TextStyle(
+                                  color: AppColors.textGrey,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+                          }
+
+                          final List<RegionOption> regions =
+                              snapshot.data ?? [];
+                          final Map<int, String> regionLabels = {
+                            for (final region in regions)
+                              region.regionId: region.regionName,
+                          };
+
+                          if (regions.isEmpty) {
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: AppColors.borderGrey),
+                              ),
+                              child: const Text(
+                                'No regions available.',
+                                style: TextStyle(
+                                  color: AppColors.textGrey,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            );
+                          }
+
+                          return _DropdownField<int>(
+                            value: _selectedRegionId,
+                            hintText: 'Select Region',
+                            items: regions
+                                .map((region) => region.regionId)
+                                .toList(),
+                            icon: Icons.public_rounded,
+                            isRequired: true,
+                            validator: (value) {
+                              if (value == null || value <= 0) {
+                                return 'Region is required';
+                              }
+                              return null;
+                            },
+                            itemLabelBuilder: (value) =>
+                                regionLabels[value] ?? value.toString(),
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedRegionId = value;
+                              });
+                            },
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
                       _StyledTextField(
                         controller: _flatBuildingController,
                         label: 'Flat/Building',
@@ -957,6 +1057,7 @@ class _DropdownField<T> extends StatelessWidget {
     this.hintText,
     this.validator,
     this.isRequired = false,
+    this.itemLabelBuilder,
   });
 
   final T? value;
@@ -966,6 +1067,7 @@ class _DropdownField<T> extends StatelessWidget {
   final String? hintText;
   final String? Function(T?)? validator;
   final bool isRequired;
+  final String Function(T value)? itemLabelBuilder;
 
   @override
   Widget build(BuildContext context) {
@@ -993,7 +1095,7 @@ class _DropdownField<T> extends StatelessWidget {
             (item) => DropdownMenuItem<T>(
               value: item,
               child: Text(
-                '$item',
+                itemLabelBuilder?.call(item) ?? '$item',
                 style: const TextStyle(
                   color: AppColors.textDark,
                   fontSize: 16,

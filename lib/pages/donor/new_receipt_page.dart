@@ -13,10 +13,12 @@ class NewReceiptPage extends StatefulWidget {
     super.key,
     required this.donorName,
     required this.donorId,
+    this.regionId,
   });
 
   final String donorName;
   final int donorId;
+  final int? regionId;
 
   @override
   State<NewReceiptPage> createState() => _NewReceiptPageState();
@@ -262,6 +264,7 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
         builder: (_) => _ReceiptSignaturePage(
           donorId: widget.donorId,
           donorName: widget.donorName,
+          regionId: widget.regionId,
           donorDisplayName: _donorDisplayName,
           month: _selectedMonth,
           year: _selectedYear,
@@ -1164,6 +1167,7 @@ class _ReceiptSignaturePage extends StatefulWidget {
   const _ReceiptSignaturePage({
     required this.donorId,
     required this.donorName,
+    required this.regionId,
     required this.donorDisplayName,
     required this.month,
     required this.year,
@@ -1176,6 +1180,7 @@ class _ReceiptSignaturePage extends StatefulWidget {
 
   final int donorId;
   final String donorName;
+  final int? regionId;
   final String donorDisplayName;
   final String month;
   final int year;
@@ -1236,7 +1241,10 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     final String companyName = widget.companyName.trim().isEmpty
         ? 'N/A'
         : widget.companyName.trim();
-    final String regionName = user.regionId.toString();
+    final int regionId = (widget.regionId != null && widget.regionId! > 0)
+        ? widget.regionId!
+        : (donor.regionId > 0 ? donor.regionId : user.regionId);
+    final String regionName = regionId.toString();
     final String repType = user.userTypeId.toString();
     final String repName = user.userName;
 
@@ -1245,7 +1253,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
       'Amount': totalAmount,
       'Cancel': 0,
       'CompanyID': widget.companyId,
-      'RegionID': user.regionId,
+      'RegionID': regionId,
       'RepID': user.userId,
       'Notes': notes,
       'PaymentMonth': paymentMonth,

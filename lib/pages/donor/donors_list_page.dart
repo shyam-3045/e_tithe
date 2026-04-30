@@ -191,7 +191,11 @@ class _DonorsListPageState extends State<DonorsListPage> {
       case _DonorMenuAction.dependent:
         page = DependentPage(donorName: donor.name, donorId: donor.donorId);
       case _DonorMenuAction.newReceipt:
-        page = NewReceiptPage(donorName: donor.name, donorId: donor.donorId);
+        page = NewReceiptPage(
+          donorName: donor.name,
+          donorId: donor.donorId,
+          regionId: donor.regionId,
+        );
     }
 
     Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
@@ -208,6 +212,7 @@ class _DonorListItem {
     required this.addressLines,
     required this.email,
     required this.phone,
+    required this.regionId,
     this.dependents = const <String>[],
     this.avatarUrl,
     this.photoBase64,
@@ -241,6 +246,7 @@ class _DonorListItem {
       addressLines: _parseAddressLines(json),
       email: json['email']?.toString() ?? '',
       phone: json['mobileNo']?.toString() ?? json['phone']?.toString() ?? '',
+      regionId: _parseInt(json['regionID'] ?? json['regionId']),
       dependents: _parseDependents(json),
       avatarUrl: avatarUrl,
       photoBase64: photoBase64,
@@ -254,6 +260,7 @@ class _DonorListItem {
     List<String>? addressLines,
     String? email,
     String? phone,
+    int? regionId,
     List<String>? dependents,
     String? avatarUrl,
     String? photoBase64,
@@ -265,6 +272,7 @@ class _DonorListItem {
       addressLines: addressLines ?? this.addressLines,
       email: email ?? this.email,
       phone: phone ?? this.phone,
+      regionId: regionId ?? this.regionId,
       dependents: dependents ?? this.dependents,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       photoBase64: photoBase64 ?? this.photoBase64,
@@ -365,6 +373,7 @@ class _DonorListItem {
   final List<String> addressLines;
   final String email;
   final String phone;
+  final int regionId;
   final List<String> dependents;
   final String? avatarUrl;
   final String? photoBase64;

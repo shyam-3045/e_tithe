@@ -176,7 +176,7 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
           receipt: item,
           receiptGreen: _receiptGreen,
           captureKey: captureKey,
-          onShowPdf: () => _openReceiptPdf(item),
+          onShowPdf: () {}, // PDF view disabled - using screenshots instead
           onShare: () => _shareReceiptImage(item, captureKey),
           onMessage: () => _shareReceiptMessage(item),
         ),
@@ -198,12 +198,6 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
       monthLabel: item.monthLabel,
       notes: item.notes,
     );
-  }
-
-  Future<String> _ensureReceiptPdfPath(_ReceiptItem item) async {
-    final ReceiptExportData data = _toExportData(item);
-    final file = await _receiptExportService.getOrCreatePdf(data);
-    return file.path;
   }
 
   Future<T?> _runReceiptAction<T>({
@@ -267,22 +261,6 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
         Navigator.of(context, rootNavigator: true).pop();
       }
     }
-  }
-
-  Future<void> _openReceiptPdf(_ReceiptItem item) async {
-    final String? filePath = await _runReceiptAction<String>(
-      loadingText: 'Generating receipt PDF...',
-      errorTitle: 'PDF error',
-      task: () => _ensureReceiptPdfPath(item),
-    );
-    if (!mounted || filePath == null) return;
-
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            _ReceiptPdfPage(pdfPath: filePath, receiptNo: item.receiptNo),
-      ),
-    );
   }
 
   Future<File> _captureReceiptImage(

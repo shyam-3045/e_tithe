@@ -42,8 +42,8 @@ dependencies:
   pdf: ^3.11.3
   printing: ^5.13.4
   share_plus: ^10.1.4
-  flutter_html_to_pdf:
-    path: third_party/flutter_html_to_pdf
+  # flutter_html_to_pdf:
+  #   path: third_party/flutter_html_to_pdf
   flutter_pdfview: ^1.3.2
   path_provider: ^2.1.5
 
@@ -70,6 +70,7 @@ flutter:
 
   assets:
     - .env
+    - logo.jpeg
 
   # To add assets to your application, add an assets section, like this:
   # assets:

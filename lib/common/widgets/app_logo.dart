@@ -3,17 +3,12 @@ import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
 
 class AppLogo extends StatelessWidget {
-  const AppLogo({
-    super.key,
-    this.size = 128,
-  });
+  const AppLogo({super.key, this.size = 128});
 
   final double size;
 
   @override
   Widget build(BuildContext context) {
-    final double iconSize = size * 0.55;
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -21,27 +16,8 @@ class AppLogo extends StatelessWidget {
           width: size,
           height: size,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(size * 0.03),
-              topRight: Radius.circular(size * 0.2),
-              bottomLeft: Radius.circular(size * 0.2),
-              bottomRight: Radius.circular(size * 0.03),
-            ),
-            border: Border.all(
-              color: AppColors.lightGold,
-              width: 2,
-            ),
-            gradient: const LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                AppColors.gold,
-                AppColors.darkGold,
-                AppColors.gold,
-                AppColors.darkGold,
-              ],
-              stops: [0.05, 0.42, 0.62, 1],
-            ),
+            borderRadius: BorderRadius.circular(size * 0.12),
+            border: Border.all(color: AppColors.lightGold, width: 2),
             boxShadow: [
               BoxShadow(
                 color: AppColors.gold.withValues(alpha: 0.35),
@@ -50,33 +26,14 @@ class AppLogo extends StatelessWidget {
               ),
             ],
           ),
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Icon(
-                Icons.local_fire_department_outlined,
-                size: iconSize,
-                color: Colors.white,
-                shadows: const [
-                  Shadow(
-                    color: AppColors.gold,
-                    blurRadius: 12,
-                  ),
-                ],
-              ),
-              Positioned(
-                bottom: size * 0.16,
-                child: Text(
-                  'SU-INDIA',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: size * 0.12,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-              ),
-            ],
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(size * 0.12),
+            child: Image.asset(
+              'logo.jpeg',
+              fit: BoxFit.cover,
+              width: size,
+              height: size,
+            ),
           ),
         ),
         SizedBox(height: size * 0.08),
@@ -87,12 +44,7 @@ class AppLogo extends StatelessWidget {
             fontSize: size * 0.14,
             fontWeight: FontWeight.w900,
             letterSpacing: 0.2,
-            shadows: const [
-              Shadow(
-                color: AppColors.gold,
-                blurRadius: 3,
-              ),
-            ],
+            shadows: const [Shadow(color: AppColors.gold, blurRadius: 3)],
           ),
         ),
       ],

@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../common/constants/api_config.dart';
@@ -34,6 +33,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
   final _cityController = TextEditingController();
   final _pincodeController = TextEditingController();
   final _districtController = TextEditingController();
+  final _organizationController = TextEditingController();
+  final _addressController = TextEditingController();
   final _mobileController = TextEditingController();
   final _whatsAppController = TextEditingController();
   final _emailController = TextEditingController();
@@ -62,6 +63,13 @@ class _NewDonorPageState extends State<NewDonorPage> {
   String? _selectedArea;
   int? _selectedRegionId;
   String? _selectedState = 'Andaman Nicobar';
+  
+  // User type selection (Area Leader / Promotional Staff)
+  static const List<String> _userTypes = ['Area Leader', 'Promotional Staff'];
+  String _selectedUserType = _userTypes[0];
+  List<_LeaderOption> _leaderOptions = <_LeaderOption>[];
+  int? _selectedLeaderId;
+  bool _loadingLeaders = false;
 
   static const List<String> _titles = ['Mr.', 'Mrs.', 'Ms.', 'Dr.'];
   static const List<String> _genders = ['Male', 'Female', 'Other'];
@@ -90,6 +98,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
   void initState() {
     super.initState();
     _regionsFuture = RegionService.instance.fetchRegions();
+    _loadLeaders();
   }
 
   @override
@@ -104,6 +113,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
     _cityController.dispose();
     _pincodeController.dispose();
     _districtController.dispose();
+    _organizationController.dispose();
+    _addressController.dispose();
     _mobileController.dispose();
     _whatsAppController.dispose();
     _emailController.dispose();
@@ -171,6 +182,101 @@ class _NewDonorPageState extends State<NewDonorPage> {
           '${pickedDate.month.toString().padLeft(2, '0')}/'
           '${pickedDate.year}';
     });
+  }
+
+  Future<void> _loadLeaders() async {
+    setState(() {
+      _loadingLeaders = true;
+      _leaderOptions = <_LeaderOption>[];
+      _selectedLeaderId = null;
+    });
+
+    try {
+      final List<String> paths = _selectedUserType == _userTypes[0]
+          ? <String>['/api/AreaLeader']
+          : <String>['/api/PromotionStaff'];
+
+      final Map<String, String> headers =
+          await AuthService.instance.authenticatedJsonHeaders();
+
+      http.Response? response;
+      for (final String path in paths) {
+        final Uri uri = ApiConfig.uri(path);
+        final http.Response candidate = await http.get(uri, headers: headers);
+        if (candidate.statusCode >= 200 && candidate.statusCode < 300) {
+          response = candidate;
+          break;
+        }
+        if (candidate.statusCode != 404) {
+          response = candidate;
+          break;
+        }
+      }
+
+      if (response != null && response.statusCode >= 200 && response.statusCode < 300) {
+        final Object decoded = jsonDecode(response.body);
+        List items = <Object>[];
+        if (decoded is Map<String, dynamic>) {
+          final Object? data = decoded['data'] ?? decoded['result'];
+          if (data is List) items = data;
+        } else if (decoded is List) {
+          items = decoded;
+        }
+
+        final List<_LeaderOption> list = items
+            .whereType<Map<String, dynamic>>()
+            .map((m) {
+              final int id = int.tryParse(
+                    (m['areaLeaderID'] ??
+                            m['promotionStaffID'] ??
+                            m['id'] ??
+                            m['leaderId'] ??
+                            m['userId'] ??
+                            m['areaLeaderId'] ??
+                            m['promotionStaffId'] ??
+                            '')
+                        .toString(),
+                  ) ??
+                  0;
+              final String name = (m['areaLeaderName'] ??
+                      m['promotionStaffName'] ??
+                      m['name'] ??
+                      m['fullName'] ??
+                      m['leaderName'] ??
+                      m['userName'] ??
+                      m['displayName'] ??
+                      '')
+                  .toString();
+              return _LeaderOption(id: id, name: name.isEmpty ? 'Unknown' : name);
+            })
+            .where((e) => e.id > 0)
+            .toList();
+
+        if (mounted) {
+          setState(() {
+            _leaderOptions = list;
+          });
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Failed to load leaders${response == null ? '' : ': ${response.statusCode}'}',
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading leaders: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingLeaders = false);
+    }
   }
 
   DateTime? _parseUiDate(String input) {
@@ -257,8 +363,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'maritalStatus': (_selectedMaritalStatus ?? '').trim(),
       'regionID': _selectedRegionId ?? 0,
       'areaID': 0,
-      'areaLeaderID': 0,
-      'promotionStaffID': 0,
+      'areaLeaderID': (_selectedUserType == 'Area Leader') ? (_selectedLeaderId ?? 0) : 0,
+      'promotionStaffID': (_selectedUserType == 'Promotional Staff') ? (_selectedLeaderId ?? 0) : 0,
+      'userType': _selectedUserType,
       'mobile': _mobileController.text.trim(),
       'whatsAppNumber': _whatsAppController.text.trim(),
       'email': _emailController.text.trim(),
@@ -268,6 +375,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'district': _districtController.text.trim(),
       'state': (_selectedState ?? '').trim(),
       'pincode': _pincodeController.text.trim(),
+      'organization': _organizationController.text.trim(),
+      'address': _addressController.text.trim(),
       'isActive': true,
       'deleted': false,
       'createdOn': now.toIso8601String(),
@@ -282,66 +391,13 @@ class _NewDonorPageState extends State<NewDonorPage> {
     final Uri uri = ApiConfig.uri(ApiEndpoints.donor);
     final Map<String, String> headers = await AuthService.instance
         .authenticatedJsonHeaders();
-    headers.remove('Content-Type');
 
-    final http.MultipartRequest request = http.MultipartRequest('POST', uri)
-      ..headers.addAll(headers);
+    final String body = jsonEncode(payload);
+    print('[API] POST $uri');
+    print('[API] Request headers: ${jsonEncode(headers)}');
+    print('[API] Request body: $body');
 
-    payload.forEach((String key, dynamic value) {
-      if (value == null) {
-        return;
-      }
-      request.fields[key] = _stringifyFormValue(value);
-    });
-
-    final Uint8List? photoBytes = _selectedPhotoBytes;
-    final XFile? photoFile = _selectedPhoto;
-    if (photoBytes != null && photoFile != null) {
-      request.files.add(
-        http.MultipartFile.fromBytes(
-          'photoFile',
-          photoBytes,
-          filename: photoFile.name,
-          contentType: _getMimeType(photoFile.name),
-        ),
-      );
-    }
-
-    final http.StreamedResponse streamedResponse = await request.send();
-    return http.Response.fromStream(streamedResponse);
-  }
-
-  String _stringifyFormValue(Object value) {
-    if (value is String) {
-      return value;
-    }
-
-    if (value is num || value is bool) {
-      return value.toString();
-    }
-
-    if (value is Map || value is List) {
-      return jsonEncode(value);
-    }
-
-    return value.toString();
-  }
-
-  MediaType _getMimeType(String filename) {
-    final String lowerName = filename.toLowerCase();
-    if (lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg')) {
-      return MediaType('image', 'jpeg');
-    }
-    if (lowerName.endsWith('.png')) {
-      return MediaType('image', 'png');
-    }
-    if (lowerName.endsWith('.gif')) {
-      return MediaType('image', 'gif');
-    }
-    if (lowerName.endsWith('.webp')) {
-      return MediaType('image', 'webp');
-    }
-    return MediaType('image', 'jpeg');
+    return http.post(uri, headers: headers, body: body);
   }
 
   Future<void> _handleSave() async {
@@ -376,12 +432,11 @@ class _NewDonorPageState extends State<NewDonorPage> {
       final payload = _buildDonorPayload();
       final Uri uri = ApiConfig.uri(ApiEndpoints.donor);
       print('[API] URL: $uri');
-      print(
-        '[API] Payload: Creating donor with photo (photo size: ${_selectedPhotoBytes?.length ?? 0} bytes)',
-      );
+      print('[API] Payload JSON: ${jsonEncode(payload)}');
 
       final response = await _submitDonor(payload);
-      print('[API] Response: ${response.statusCode}');
+      print('[API] Response status: ${response.statusCode}');
+      print('[API] Response body: ${response.body}');
 
       if (!mounted) return;
 
@@ -714,6 +769,60 @@ class _NewDonorPageState extends State<NewDonorPage> {
                         },
                       ),
                       const SizedBox(height: 16),
+                      _DropdownField<String>(
+                        value: _selectedUserType,
+                        items: _userTypes,
+                        icon: Icons.person_outline,
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _selectedUserType = value;
+                            _selectedLeaderId = null;
+                            _leaderOptions = <_LeaderOption>[];
+                          });
+                          _loadLeaders();
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      if (_loadingLeaders)
+                        const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 8),
+                          child: Center(
+                            child: SizedBox(
+                              height: 18,
+                              width: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2.5),
+                            ),
+                          ),
+                        ),
+                      _DropdownField<int>(
+                        value: _selectedLeaderId,
+                        hintText: _selectedUserType == 'Area Leader'
+                            ? 'Select Area Leader'
+                            : 'Select Promotional Staff',
+                        items: _leaderOptions.map((e) => e.id).toList(),
+                        icon: Icons.person_search_rounded,
+                        isRequired: true,
+                        validator: (value) {
+                          if (value == null || value <= 0) {
+                            return 'Please select ${_selectedUserType.toLowerCase()}';
+                          }
+                          return null;
+                        },
+                        itemLabelBuilder: (value) {
+                          final found = _leaderOptions.firstWhere(
+                            (e) => e.id == value,
+                            orElse: () => const _LeaderOption(id: 0, name: 'Unknown'),
+                          );
+                          return found.name;
+                        },
+                        onChanged: (value) {
+                          setState(() {
+                            _selectedLeaderId = value;
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 16),
                       _StyledTextField(
                         controller: _flatBuildingController,
                         label: 'Flat/Building',
@@ -779,6 +888,18 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             _selectedState = value;
                           });
                         },
+                      ),
+                      const SizedBox(height: 16),
+                      _StyledTextField(
+                        controller: _organizationController,
+                        label: 'Organization',
+                        icon: Icons.business_rounded,
+                      ),
+                      const SizedBox(height: 16),
+                      _StyledTextField(
+                        controller: _addressController,
+                        label: 'Address',
+                        icon: Icons.home_rounded,
                       ),
                       const SizedBox(height: 16),
                       _StyledTextField(
@@ -1366,6 +1487,13 @@ class _BottomAction extends StatelessWidget {
       ),
     );
   }
+}
+
+class _LeaderOption {
+  const _LeaderOption({required this.id, required this.name});
+
+  final int id;
+  final String name;
 }
 
 class _DependentDraft {

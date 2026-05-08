@@ -30,6 +30,8 @@ class DonorDetails {
     required this.weddingDate,
     required this.aadharNo,
     required this.panNo,
+    required this.organization,
+    required this.address,
     required this.dependents,
   });
 
@@ -65,6 +67,8 @@ class DonorDetails {
         json['aadharNo'] ?? json['aadhaarNo'] ?? json['aadhaar'],
       ),
       panNo: _string(json['panNo'] ?? json['panNumber']),
+      organization: _string(json['organization']),
+      address: _string(json['address']),
       dependents: _parseDependents(json),
     );
   }
@@ -91,6 +95,8 @@ class DonorDetails {
   final String weddingDate;
   final String aadharNo;
   final String panNo;
+  final String organization;
+  final String address;
   final List<DonorDependent> dependents;
 
   static int _parseInt(Object? value) {

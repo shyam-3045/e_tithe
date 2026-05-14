@@ -303,10 +303,14 @@ class _DashboardDrawer extends StatelessWidget {
 
     if (confirmed != true) return;
 
+    print('[Dashboard] Logout confirmed - clearing session');
+
     // Close drawer if it is open.
     Navigator.of(context).maybePop();
 
     await AuthService.instance.clearSession();
+
+    print('[Dashboard] Session cleared - navigating to login');
 
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(

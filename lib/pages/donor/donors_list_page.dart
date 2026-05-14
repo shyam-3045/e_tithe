@@ -7,6 +7,7 @@ import 'package:http/http.dart' as http;
 import '../../common/constants/api_config.dart';
 import '../../common/constants/api_endpoints.dart';
 import '../../common/constants/app_colors.dart';
+import '../../common/models/user_data.dart';
 import '../../common/services/auth_service.dart';
 import '../../common/widgets/common_alert.dart';
 import 'update_profile_page.dart';
@@ -32,15 +33,32 @@ class _DonorsListPageState extends State<DonorsListPage> {
 
   Future<List<_DonorListItem>> _fetchDonors() async {
     try {
-      final Uri uri = ApiConfig.uri(ApiEndpoints.donor);
+      print('[DonorsListPage] ======== FETCHING DONORS ========');
+
+      // Get user data from storage
+      final UserData? userData = await AuthService.instance.currentUserData();
+
+      if (userData == null) {
+        throw Exception('User data not found. Please login again.');
+      }
+
+      print('[DonorsListPage] User Data:');
+      print('[DonorsListPage] - userTypeName: ${userData.userTypeName}');
+      print('[DonorsListPage] - userId: ${userData.userID}');
+
+      // Build API URL with userTypeName and userId
+      final String apiUrl =
+          '/api/Donor/gerdonorsbyusertypeanduserid?usertype=${userData.userTypeName}&userid=${userData.userID}';
+      final Uri uri = ApiConfig.uri(apiUrl);
       final Map<String, String> headers = await AuthService.instance
           .authenticatedJsonHeaders();
 
-      print('[API] URL: $uri');
+      print('[DonorsListPage] URL: $uri');
 
       final http.Response response = await http.get(uri, headers: headers);
 
-      print('[API] Response: ${response.statusCode}');
+      print('[DonorsListPage] Response Status: ${response.statusCode}');
+      print('[DonorsListPage] Response Body: ${response.body}');
 
       if (response.statusCode < 200 || response.statusCode >= 300) {
         throw Exception('Failed to fetch donors. Please try again.');
@@ -48,6 +66,8 @@ class _DonorsListPageState extends State<DonorsListPage> {
 
       final Object decoded = jsonDecode(response.body);
       final List<dynamic> donorsList = _extractList(decoded);
+
+      print('[DonorsListPage] Total donors: ${donorsList.length}');
 
       final List<_DonorListItem> donors = donorsList
           .cast<Map<String, dynamic>>()

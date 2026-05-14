@@ -8,8 +8,9 @@ import 'package:image_picker/image_picker.dart';
 import '../../common/constants/api_config.dart';
 import '../../common/constants/api_endpoints.dart';
 import '../../common/constants/app_colors.dart';
+import '../../common/models/user_data.dart';
+import '../../common/services/agent_area_service.dart';
 import '../../common/services/auth_service.dart';
-import '../../common/services/region_service.dart';
 import '../../common/widgets/common_alert.dart';
 
 class NewDonorPage extends StatefulWidget {
@@ -51,7 +52,10 @@ class _NewDonorPageState extends State<NewDonorPage> {
   bool _dependentsExpanded = true;
 
   bool _saving = false;
-  late Future<List<RegionOption>> _regionsFuture;
+
+  UserData? _userData;
+  List<AgentAreaOption> _areaOptions = <AgentAreaOption>[];
+  bool _loadingAreas = false;
 
   XFile? _selectedPhoto;
   Uint8List? _selectedPhotoBytes;
@@ -63,26 +67,11 @@ class _NewDonorPageState extends State<NewDonorPage> {
   String? _selectedArea;
   int? _selectedRegionId;
   String? _selectedState = 'Andaman Nicobar';
-  
-  // User type selection (Area Leader / Promotional Staff)
-  static const List<String> _userTypes = ['Area Leader', 'Promotional Staff'];
-  String _selectedUserType = _userTypes[0];
-  List<_LeaderOption> _leaderOptions = <_LeaderOption>[];
-  int? _selectedLeaderId;
-  bool _loadingLeaders = false;
 
   static const List<String> _titles = ['Mr.', 'Mrs.', 'Ms.', 'Dr.'];
   static const List<String> _genders = ['Male', 'Female', 'Other'];
   static const List<String> _maritalStatuses = ['Married', 'Single', 'Other'];
   static const List<String> _membershipOptions = ['Member', 'Non-Member'];
-  static const List<String> _areas = [
-    'Select Area',
-    'Central Zone',
-    'East Zone',
-    'North Zone',
-    'South Zone',
-    'West Zone',
-  ];
   static const List<String> _states = [
     'Andaman Nicobar',
     'Andhra Pradesh',
@@ -97,8 +86,86 @@ class _NewDonorPageState extends State<NewDonorPage> {
   @override
   void initState() {
     super.initState();
-    _regionsFuture = RegionService.instance.fetchRegions();
-    _loadLeaders();
+    _loadUserDataAndAreas();
+  }
+
+  Future<void> _loadUserDataAndAreas() async {
+    try {
+      print('[NewDonorPage] ======== LOADING USER DATA ========');
+      final UserData? userData = await AuthService.instance.currentUserData();
+
+      if (userData == null) {
+        print('[NewDonorPage] No user data found in storage');
+      } else {
+        print('[NewDonorPage] User Data loaded:');
+        print('[NewDonorPage] - userTypeID: ${userData.userTypeID}');
+        print('[NewDonorPage] - userTypeName: ${userData.userTypeName}');
+        print('[NewDonorPage] - userID: ${userData.userID}');
+        print('[NewDonorPage] - userName: ${userData.userName}');
+        print('[NewDonorPage] - regionID: ${userData.regionID}');
+        print('[NewDonorPage] - regionName: ${userData.regionName}');
+      }
+
+      if (userData != null && mounted) {
+        setState(() {
+          _userData = userData;
+          _selectedRegionId = userData.regionID;
+        });
+        await _loadAreas(userData.userTypeID, userData.userID);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User data not found. Please login again.'),
+          ),
+        );
+      }
+    } catch (e) {
+      print('[NewDonorPage] Error loading user data: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    }
+  }
+
+  Future<void> _loadAreas(int userTypeId, int userId) async {
+    print('[NewDonorPage] ======== LOADING AREAS ========');
+    print('[NewDonorPage] userTypeId: $userTypeId, userId: $userId');
+
+    setState(() {
+      _loadingAreas = true;
+      _areaOptions = <AgentAreaOption>[];
+      _selectedArea = null;
+    });
+
+    try {
+      final List<AgentAreaOption> areas = await AgentAreaService.instance
+          .fetchAreasByUserTypeAndUserId(
+            userTypeId: userTypeId,
+            userId: userId,
+          );
+
+      print('[NewDonorPage] Areas loaded: ${areas.length} areas');
+      for (final area in areas) {
+        print('[NewDonorPage] - Area: ${area.areaName} (ID: ${area.areaId})');
+      }
+
+      if (mounted) {
+        setState(() {
+          _areaOptions = areas;
+        });
+      }
+    } catch (e) {
+      print('[NewDonorPage] Error loading areas: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error loading areas: ${e.toString()}')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _loadingAreas = false);
+    }
   }
 
   @override
@@ -184,101 +251,6 @@ class _NewDonorPageState extends State<NewDonorPage> {
     });
   }
 
-  Future<void> _loadLeaders() async {
-    setState(() {
-      _loadingLeaders = true;
-      _leaderOptions = <_LeaderOption>[];
-      _selectedLeaderId = null;
-    });
-
-    try {
-      final List<String> paths = _selectedUserType == _userTypes[0]
-          ? <String>['/api/AreaLeader']
-          : <String>['/api/PromotionStaff'];
-
-      final Map<String, String> headers =
-          await AuthService.instance.authenticatedJsonHeaders();
-
-      http.Response? response;
-      for (final String path in paths) {
-        final Uri uri = ApiConfig.uri(path);
-        final http.Response candidate = await http.get(uri, headers: headers);
-        if (candidate.statusCode >= 200 && candidate.statusCode < 300) {
-          response = candidate;
-          break;
-        }
-        if (candidate.statusCode != 404) {
-          response = candidate;
-          break;
-        }
-      }
-
-      if (response != null && response.statusCode >= 200 && response.statusCode < 300) {
-        final Object decoded = jsonDecode(response.body);
-        List items = <Object>[];
-        if (decoded is Map<String, dynamic>) {
-          final Object? data = decoded['data'] ?? decoded['result'];
-          if (data is List) items = data;
-        } else if (decoded is List) {
-          items = decoded;
-        }
-
-        final List<_LeaderOption> list = items
-            .whereType<Map<String, dynamic>>()
-            .map((m) {
-              final int id = int.tryParse(
-                    (m['areaLeaderID'] ??
-                            m['promotionStaffID'] ??
-                            m['id'] ??
-                            m['leaderId'] ??
-                            m['userId'] ??
-                            m['areaLeaderId'] ??
-                            m['promotionStaffId'] ??
-                            '')
-                        .toString(),
-                  ) ??
-                  0;
-              final String name = (m['areaLeaderName'] ??
-                      m['promotionStaffName'] ??
-                      m['name'] ??
-                      m['fullName'] ??
-                      m['leaderName'] ??
-                      m['userName'] ??
-                      m['displayName'] ??
-                      '')
-                  .toString();
-              return _LeaderOption(id: id, name: name.isEmpty ? 'Unknown' : name);
-            })
-            .where((e) => e.id > 0)
-            .toList();
-
-        if (mounted) {
-          setState(() {
-            _leaderOptions = list;
-          });
-        }
-      } else {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Failed to load leaders${response == null ? '' : ': ${response.statusCode}'}',
-              ),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error loading leaders: ${e.toString()}')),
-        );
-      }
-    } finally {
-      if (mounted) setState(() => _loadingLeaders = false);
-    }
-  }
-
   DateTime? _parseUiDate(String input) {
     final String text = input.trim();
     if (text.isEmpty) return null;
@@ -361,11 +333,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
           : null,
       'gender': (_selectedGender ?? '').trim(),
       'maritalStatus': (_selectedMaritalStatus ?? '').trim(),
-      'regionID': _selectedRegionId ?? 0,
+      'regionID': _userData?.regionID ?? 0,
       'areaID': 0,
-      'areaLeaderID': (_selectedUserType == 'Area Leader') ? (_selectedLeaderId ?? 0) : 0,
-      'promotionStaffID': (_selectedUserType == 'Promotional Staff') ? (_selectedLeaderId ?? 0) : 0,
-      'userType': _selectedUserType,
+      'userType': _userData?.userTypeName ?? '',
       'mobile': _mobileController.text.trim(),
       'whatsAppNumber': _whatsAppController.text.trim(),
       'email': _emailController.text.trim(),
@@ -659,168 +629,122 @@ class _NewDonorPageState extends State<NewDonorPage> {
                   },
                   child: Column(
                     children: [
-                      _DropdownField<String>(
-                        value: _selectedArea,
-                        hintText: 'Select Area',
-                        items: _areas.skip(1).toList(),
-                        icon: Icons.place_outlined,
-                        isRequired: true,
-                        validator: (value) {
-                          if (value == null || value.isEmpty) {
-                            return 'Area is required';
-                          }
-                          return null;
-                        },
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedArea = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      FutureBuilder<List<RegionOption>>(
-                        future: _regionsFuture,
-                        builder: (context, snapshot) {
-                          if (snapshot.connectionState ==
-                              ConnectionState.waiting) {
-                            return const Padding(
-                              padding: EdgeInsets.symmetric(vertical: 16),
-                              child: Center(
-                                child: SizedBox(
-                                  height: 20,
-                                  width: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
-                                  ),
-                                ),
-                              ),
-                            );
-                          }
-
-                          if (snapshot.hasError) {
-                            return Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: AppColors.borderGrey),
-                              ),
-                              child: Text(
-                                'Unable to load regions: ${snapshot.error}',
-                                style: const TextStyle(
-                                  color: AppColors.textGrey,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            );
-                          }
-
-                          final List<RegionOption> regions =
-                              snapshot.data ?? [];
-                          final Map<int, String> regionLabels = {
-                            for (final region in regions)
-                              region.regionId: region.regionName,
-                          };
-
-                          if (regions.isEmpty) {
-                            return Container(
-                              width: double.infinity,
-                              padding: const EdgeInsets.all(14),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface,
-                                borderRadius: BorderRadius.circular(18),
-                                border: Border.all(color: AppColors.borderGrey),
-                              ),
-                              child: const Text(
-                                'No regions available.',
-                                style: TextStyle(
-                                  color: AppColors.textGrey,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                            );
-                          }
-
-                          return _DropdownField<int>(
-                            value: _selectedRegionId,
-                            hintText: 'Select Region',
-                            items: regions
-                                .map((region) => region.regionId)
-                                .toList(),
-                            icon: Icons.public_rounded,
-                            isRequired: true,
-                            validator: (value) {
-                              if (value == null || value <= 0) {
-                                return 'Region is required';
-                              }
-                              return null;
-                            },
-                            itemLabelBuilder: (value) =>
-                                regionLabels[value] ?? value.toString(),
-                            onChanged: (value) {
-                              setState(() {
-                                _selectedRegionId = value;
-                              });
-                            },
-                          );
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _DropdownField<String>(
-                        value: _selectedUserType,
-                        items: _userTypes,
-                        icon: Icons.person_outline,
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() {
-                            _selectedUserType = value;
-                            _selectedLeaderId = null;
-                            _leaderOptions = <_LeaderOption>[];
-                          });
-                          _loadLeaders();
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      if (_loadingLeaders)
+                      if (_loadingAreas)
                         const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
+                          padding: EdgeInsets.symmetric(vertical: 16),
                           child: Center(
                             child: SizedBox(
                               height: 18,
                               width: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2.5),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                              ),
                             ),
                           ),
+                        )
+                      else if (_areaOptions.isEmpty)
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(18),
+                            border: Border.all(color: AppColors.borderGrey),
+                          ),
+                          child: const Text(
+                            'No area available',
+                            style: TextStyle(
+                              color: AppColors.textGrey,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        )
+                      else
+                        _DropdownField<String>(
+                          value: _selectedArea,
+                          hintText: 'Select Area',
+                          items: _areaOptions
+                              .map((area) => area.areaName)
+                              .toList(),
+                          icon: Icons.place_outlined,
+                          isRequired: true,
+                          validator: (value) {
+                            if (value == null || value.isEmpty) {
+                              return 'Area is required';
+                            }
+                            return null;
+                          },
+                          onChanged: (value) {
+                            setState(() {
+                              _selectedArea = value;
+                            });
+                          },
                         ),
-                      _DropdownField<int>(
-                        value: _selectedLeaderId,
-                        hintText: _selectedUserType == 'Area Leader'
-                            ? 'Select Area Leader'
-                            : 'Select Promotional Staff',
-                        items: _leaderOptions.map((e) => e.id).toList(),
-                        icon: Icons.person_search_rounded,
-                        isRequired: true,
-                        validator: (value) {
-                          if (value == null || value <= 0) {
-                            return 'Please select ${_selectedUserType.toLowerCase()}';
-                          }
-                          return null;
-                        },
-                        itemLabelBuilder: (value) {
-                          final found = _leaderOptions.firstWhere(
-                            (e) => e.id == value,
-                            orElse: () => const _LeaderOption(id: 0, name: 'Unknown'),
-                          );
-                          return found.name;
-                        },
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedLeaderId = value;
-                          });
-                        },
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AppColors.borderGrey),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Region',
+                              style: TextStyle(
+                                color: AppColors.textGrey,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _userData?.regionName ?? 'No region selected',
+                              style: const TextStyle(
+                                color: AppColors.textDark,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AppColors.borderGrey),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'User Type',
+                              style: TextStyle(
+                                color: AppColors.textGrey,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              _userData?.userTypeName ??
+                                  'No user type selected',
+                              style: const TextStyle(
+                                color: AppColors.textDark,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 16),
                       _StyledTextField(
@@ -1487,13 +1411,6 @@ class _BottomAction extends StatelessWidget {
       ),
     );
   }
-}
-
-class _LeaderOption {
-  const _LeaderOption({required this.id, required this.name});
-
-  final int id;
-  final String name;
 }
 
 class _DependentDraft {

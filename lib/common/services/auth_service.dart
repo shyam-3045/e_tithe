@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../constants/api_config.dart';
 import '../constants/api_endpoints.dart';
+import '../models/user_data.dart';
 
 class AuthSession {
   const AuthSession({
@@ -88,6 +89,7 @@ class AuthService {
 
   static const String _sessionKey = 'auth_session';
   static const String _tokenKey = 'auth_token';
+  static const String _userDataKey = 'user_data';
 
   final http.Client _client;
 
@@ -101,7 +103,7 @@ class AuthService {
       'password': password,
     };
 
-    print('[API] URL: $uri');
+    print('[API] Login URL: $uri');
     print('[API] Payload: ${jsonEncode(loginPayload)}');
 
     final http.Response response = await _client.post(
@@ -113,7 +115,7 @@ class AuthService {
       body: jsonEncode(loginPayload),
     );
 
-    print('[API] Response: ${response.statusCode} ${response.body}');
+    print('[API] Login Response: ${response.statusCode} ${response.body}');
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw AuthException(
@@ -130,6 +132,44 @@ class AuthService {
     }
 
     await _saveSession(session);
+
+    // Fetch and save user data after login
+    print('[API] ======== FETCHING USER DATA AFTER LOGIN ========');
+    print('[API] session.userTypeId: ${session.userTypeId}');
+    print('[API] session.userId: ${session.userId}');
+
+    if (session.userTypeId == null) {
+      print('[API] ERROR: userTypeId is null in login response');
+    }
+    if (session.userId == null) {
+      print('[API] ERROR: userId is null in login response');
+    }
+
+    if (session.userTypeId != null && session.userId != null) {
+      try {
+        final int userId = int.tryParse(session.userId!) ?? 0;
+        print('[API] Attempting to fetch user data with userId: $userId');
+
+        if (userId > 0) {
+          final UserData userData = await fetchAndSaveUserData(
+            userTypeId: session.userTypeId!,
+            userId: userId,
+          );
+          print(
+            '[API] ✅ User Data fetched and stored successfully: ${jsonEncode(userData.toJson())}',
+          );
+        } else {
+          print('[API] ❌ userId is 0 or invalid');
+        }
+      } catch (e) {
+        print('[API] ❌ Error fetching user data: $e');
+        print('[API] Stack trace: ${StackTrace.current}');
+        // Continue even if user data fetch fails
+      }
+    } else {
+      print('[API] ❌ Cannot fetch user data: userTypeId or userId is null');
+    }
+
     return session;
   }
 
@@ -182,15 +222,133 @@ class AuthService {
   }
 
   Future<void> clearSession() async {
+    print('[AuthService] ======== CLEARING SESSION ========');
+    print('[AuthService] Removing: $_sessionKey');
+    print('[AuthService] Removing: $_tokenKey');
+    print('[AuthService] Removing: $_userDataKey');
+
     final SharedPreferences preferences = await SharedPreferences.getInstance();
     await preferences.remove(_sessionKey);
     await preferences.remove(_tokenKey);
+    await preferences.remove(_userDataKey);
+
+    print('[AuthService] ======== SESSION CLEARED ========');
+    print('[AuthService] All user data and tokens removed from local storage');
+  }
+
+  Future<UserData?> currentUserData() async {
+    print('[AuthService] ======== RETRIEVING STORED USER DATA ========');
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    final String? rawUserData = preferences.getString(_userDataKey);
+
+    if (rawUserData == null) {
+      print(
+        '[AuthService] ❌ No user data found in local storage (_userDataKey = $_userDataKey)',
+      );
+      return null;
+    }
+
+    if (rawUserData.isEmpty) {
+      print('[AuthService] ❌ User data is empty in local storage');
+      return null;
+    }
+
+    print('[AuthService] ✅ Raw user data found: $rawUserData');
+
+    try {
+      final UserData userData = UserData.fromJson(
+        jsonDecode(rawUserData) as Map<String, dynamic>,
+      );
+      print('[AuthService] ✅ User data parsed successfully');
+      print('[AuthService] - userTypeID: ${userData.userTypeID}');
+      print('[AuthService] - userTypeName: ${userData.userTypeName}');
+      print('[AuthService] - userID: ${userData.userID}');
+      print('[AuthService] - regionID: ${userData.regionID}');
+      return userData;
+    } catch (e) {
+      print('[AuthService] ❌ Error parsing user data: $e');
+      return null;
+    }
+  }
+
+  Future<UserData> fetchAndSaveUserData({
+    required int userTypeId,
+    required int userId,
+  }) async {
+    print('[API] ======== FETCHING USER DATA ========');
+    print('[API] userTypeId: $userTypeId, userId: $userId');
+
+    final Uri uri = ApiConfig.uri(
+      '/api/User/getuserbyusertypeanduserid?usertypeid=$userTypeId&userid=$userId',
+    );
+    final Map<String, String> headers = await authenticatedJsonHeaders();
+
+    print('[API] Fetch User Data URL: $uri');
+    print('[API] Headers: $headers');
+
+    final http.Response response = await _client.get(uri, headers: headers);
+
+    print('[API] Fetch User Data Response Status: ${response.statusCode}');
+    print('[API] Fetch User Data Response Body: ${response.body}');
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AuthException('Failed to fetch user data: ${response.statusCode}');
+    }
+
+    final Object decoded = jsonDecode(response.body);
+    List items = <Object>[];
+
+    if (decoded is List) {
+      items = decoded;
+    } else if (decoded is Map<String, dynamic>) {
+      final Object? data = decoded['data'] ?? decoded['result'];
+      if (data is List) {
+        items = data;
+      }
+    }
+
+    if (items.isEmpty) {
+      throw const AuthException('No user data found in response');
+    }
+
+    final Map<String, dynamic> userData = items.first as Map<String, dynamic>;
+    final UserData userDataObj = UserData.fromJson(userData);
+
+    print('[API] ======== USER DATA PARSED ========');
+    print('[API] userTypeID: ${userDataObj.userTypeID}');
+    print('[API] userTypeName: ${userDataObj.userTypeName}');
+    print('[API] userID: ${userDataObj.userID}');
+    print('[API] userName: ${userDataObj.userName}');
+    print('[API] regionID: ${userDataObj.regionID}');
+    print('[API] regionName: ${userDataObj.regionName}');
+    print('[API] ================================');
+
+    await _saveUserData(userDataObj);
+    return userDataObj;
+  }
+
+  Future<void> _saveUserData(UserData userData) async {
+    print('[AuthService] ======== SAVING USER DATA ========');
+    final SharedPreferences preferences = await SharedPreferences.getInstance();
+    final String jsonData = jsonEncode(userData.toJson());
+    print('[AuthService] Saving user data with key: $_userDataKey');
+    print('[AuthService] User data: $jsonData');
+
+    await preferences.setString(_userDataKey, jsonData);
+    print('[AuthService] ✅ User data saved successfully');
   }
 
   Future<void> _saveSession(AuthSession session) async {
+    print('[AuthService] ======== SAVING SESSION ========');
     final SharedPreferences preferences = await SharedPreferences.getInstance();
+
+    print('[AuthService] Saving token with key: $_tokenKey');
+    print('[AuthService] Token: ${session.token.substring(0, 20)}...');
     await preferences.setString(_tokenKey, session.token);
+
+    print('[AuthService] Saving session with key: $_sessionKey');
     await preferences.setString(_sessionKey, jsonEncode(session.toJson()));
+    print('[AuthService] ✅ Session saved successfully');
   }
 
   Map<String, dynamic> _decodeJsonObject(String body) {

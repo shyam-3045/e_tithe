@@ -12,6 +12,7 @@ import '../../common/constants/app_colors.dart';
 import '../../common/services/receipt_export_service.dart';
 import '../../common/services/receipt_service.dart';
 import '../../common/widgets/common_alert.dart';
+import 'receipt_pdf_webview_page.dart';
 
 class MyReceiptsPage extends StatefulWidget {
   const MyReceiptsPage({super.key, this.donorName});
@@ -176,7 +177,14 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
           receipt: item,
           receiptGreen: _receiptGreen,
           captureKey: captureKey,
-          onShowPdf: () {}, // PDF view disabled - using screenshots instead
+          onShowPdf: () {
+            final ReceiptExportData data = _toExportData(item);
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => ReceiptPdfWebViewPage(receiptData: data),
+              ),
+            );
+          },
           onShare: () => _shareReceiptImage(item, captureKey),
           onMessage: () => _shareReceiptMessage(item),
         ),

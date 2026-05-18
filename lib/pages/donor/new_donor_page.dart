@@ -321,6 +321,34 @@ class _NewDonorPageState extends State<NewDonorPage> {
   Map<String, dynamic> _buildDonorPayload() {
     final DateTime now = DateTime.now().toUtc();
 
+    // Resolve selected area ID from the loaded area options
+    int selectedAreaId = 0;
+    if (_selectedArea != null && _selectedArea!.isNotEmpty) {
+      try {
+        final match = _areaOptions.firstWhere(
+          (a) => a.areaName == _selectedArea,
+          orElse: () => AgentAreaOption(areaId: 0, areaName: ''),
+        );
+        selectedAreaId = match.areaId;
+      } catch (_) {
+        selectedAreaId = 0;
+      }
+    }
+
+    // Determine areaLeaderID / promotionStaffID based on userTypeName
+    final String userTypeLower = (_userData?.userTypeName ?? '').toLowerCase();
+    final int currentUserId = _userData?.userID ?? 0;
+    final int areaLeaderId =
+        (userTypeLower.contains('area') && userTypeLower.contains('leader'))
+        ? currentUserId
+        : 0;
+    final int promotionStaffId =
+        (userTypeLower.contains('promo') ||
+            userTypeLower.contains('promotional') ||
+            userTypeLower.contains('promotion'))
+        ? currentUserId
+        : 0;
+
     return <String, dynamic>{
       'donorID': 0,
       'donorName': _donorNameController.text.trim(),
@@ -334,7 +362,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'gender': (_selectedGender ?? '').trim(),
       'maritalStatus': (_selectedMaritalStatus ?? '').trim(),
       'regionID': _userData?.regionID ?? 0,
-      'areaID': 0,
+      'areaID': selectedAreaId,
       'userType': _userData?.userTypeName ?? '',
       'mobile': _mobileController.text.trim(),
       'whatsAppNumber': _whatsAppController.text.trim(),
@@ -345,7 +373,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'district': _districtController.text.trim(),
       'state': (_selectedState ?? '').trim(),
       'pincode': _pincodeController.text.trim(),
-      'organization': _organizationController.text.trim(),
+      // Organization removed from UI; send empty string
+      'organization': '',
       'address': _addressController.text.trim(),
       'isActive': true,
       'deleted': false,
@@ -353,6 +382,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'createdBy': 'mobile-app',
       'modifiedOn': now.toIso8601String(),
       'modifiedBy': 'mobile-app',
+      'areaLeaderID': areaLeaderId,
+      'promotionStaffID': promotionStaffId,
       'dependents': _dependents.map((d) => d.toJson()).toList(),
     };
   }
@@ -814,11 +845,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _organizationController,
-                        label: 'Organization',
-                        icon: Icons.business_rounded,
-                      ),
+                      // Organization removed from UI; backend receives empty string
+                      const SizedBox(height: 0),
                       const SizedBox(height: 16),
                       _StyledTextField(
                         controller: _addressController,

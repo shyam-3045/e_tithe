@@ -8,4 +8,5 @@ class ApiEndpoints {
   static String userById(int userId) => '/api/User/$userId';
   static const String receipt = '/api/Receipt';
   static const String company = '/api/Company';
+  static const String paymentMode = '/api/PaymentMode';
 }

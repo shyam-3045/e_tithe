@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../../common/constants/app_colors.dart';
+import '../../common/models/user_data.dart';
 import '../../common/services/auth_service.dart';
 import '../../common/services/company_service.dart';
 import '../../common/services/donor_service.dart';
+import '../../common/services/payment_mode_service.dart';
 import '../../common/services/receipt_service.dart';
 import '../../common/services/user_service.dart';
 import '../../common/widgets/common_alert.dart';
@@ -33,6 +35,8 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
   List<CompanyInfo> _companies = <CompanyInfo>[];
   int? _selectedCompanyId;
   bool _isLoadingCompanies = false;
+  List<PaymentModeInfo> _paymentModes = <PaymentModeInfo>[];
+  bool _isLoadingPaymentModes = false;
 
   late String _donorDisplayName;
   List<String> _addressLines = <String>[];
@@ -157,6 +161,32 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     }
   }
 
+  Future<void> _loadPaymentModes() async {
+    setState(() {
+      _isLoadingPaymentModes = true;
+    });
+
+    try {
+      final List<PaymentModeInfo> modes = await PaymentModeService.instance
+          .fetchPaymentModes();
+      if (!mounted) return;
+
+      setState(() {
+        _paymentModes = modes;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _paymentModes = <PaymentModeInfo>[];
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingPaymentModes = false;
+      });
+    }
+  }
+
   String get _selectedCompanyName {
     final int? selectedId = _selectedCompanyId;
     if (selectedId == null) {
@@ -183,6 +213,7 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     _pincode = '';
     _loadDonorHeader();
     _loadCompanies();
+    _loadPaymentModes();
   }
 
   @override
@@ -209,6 +240,19 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       return;
     }
 
+    if (_paymentModes.isEmpty && !_isLoadingPaymentModes) {
+      await _loadPaymentModes();
+    }
+
+    if (_paymentModes.isEmpty) {
+      await CommonAlert.showInfo(
+        context,
+        title: 'No payment modes',
+        message: 'No payment modes are available. Please try again later.',
+      );
+      return;
+    }
+
     final _ReceiptPaymentEntry? created =
         await showDialog<_ReceiptPaymentEntry>(
           context: context,
@@ -216,6 +260,7 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
           builder: (context) => _AmountDetailDialog(
             fundTypes: _fundTypes,
             takenFundTypes: takenFunds,
+            paymentModes: _paymentModes,
           ),
         );
 
@@ -666,17 +711,7 @@ class _ReceiptPaymentEntry {
 
   final String fundType;
   final double amount;
-  final _PaymentMode mode;
-}
-
-enum _PaymentMode {
-  cash('CASH'),
-  cheque('CHEQUE'),
-  neft('NEFT'),
-  upi('UPI');
-
-  const _PaymentMode(this.label);
-  final String label;
+  final PaymentModeInfo mode;
 }
 
 class _DonorHeaderCard extends StatelessWidget {
@@ -800,7 +835,7 @@ class _PaymentRowCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  item.mode.label,
+                  item.mode.name,
                   style: const TextStyle(
                     color: AppColors.textGrey,
                     fontSize: 14,
@@ -929,10 +964,12 @@ class _AmountDetailDialog extends StatefulWidget {
   const _AmountDetailDialog({
     required this.fundTypes,
     required this.takenFundTypes,
+    required this.paymentModes,
   });
 
   final List<String> fundTypes;
   final Set<String> takenFundTypes;
+  final List<PaymentModeInfo> paymentModes;
 
   @override
   State<_AmountDetailDialog> createState() => _AmountDetailDialogState();
@@ -943,7 +980,7 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
 
   late String _selectedFundType;
   final _amountController = TextEditingController();
-  _PaymentMode _selectedMode = _PaymentMode.cash;
+  PaymentModeInfo? _selectedMode;
 
   @override
   void initState() {
@@ -956,6 +993,10 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
     _selectedFundType = available.contains('General Donation')
         ? 'General Donation'
         : (available.isNotEmpty ? available.first : 'General Donation');
+
+    if (widget.paymentModes.isNotEmpty) {
+      _selectedMode = widget.paymentModes.first;
+    }
   }
 
   @override
@@ -989,6 +1030,15 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
       return;
     }
 
+    if (_selectedMode == null) {
+      await CommonAlert.showInfo(
+        context,
+        title: 'Payment mode missing',
+        message: 'Please select a payment mode.',
+      );
+      return;
+    }
+
     // TODO(API): You can validate fund type/mode rules here.
 
     if (!mounted) return;
@@ -997,7 +1047,7 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
       _ReceiptPaymentEntry(
         fundType: _selectedFundType,
         amount: amount,
-        mode: _selectedMode,
+        mode: _selectedMode!,
       ),
     );
   }
@@ -1111,27 +1161,40 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
                     width: 1.4,
                   ),
                 ),
-                child: Column(
-                  children: _PaymentMode.values
-                      .map(
-                        (mode) => RadioListTile<_PaymentMode>(
-                          value: mode,
-                          groupValue: _selectedMode,
-                          activeColor: AppColors.statusBarPink,
-                          title: Text(
-                            mode.label,
-                            style: const TextStyle(fontWeight: FontWeight.w700),
+                child: widget.paymentModes.isEmpty
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: Text(
+                          'No payment modes available.',
+                          style: TextStyle(
+                            color: AppColors.textGrey,
+                            fontWeight: FontWeight.w700,
                           ),
-                          onChanged: (value) {
-                            if (value == null) return;
-                            setState(() {
-                              _selectedMode = value;
-                            });
-                          },
                         ),
                       )
-                      .toList(),
-                ),
+                    : Column(
+                        children: widget.paymentModes
+                            .map(
+                              (mode) => RadioListTile<PaymentModeInfo>(
+                                value: mode,
+                                groupValue: _selectedMode,
+                                activeColor: AppColors.statusBarPink,
+                                title: Text(
+                                  mode.name,
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() {
+                                    _selectedMode = value;
+                                  });
+                                },
+                              ),
+                            )
+                            .toList(),
+                      ),
               ),
             ],
           ),
@@ -1212,11 +1275,21 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
       throw Exception('Logged-in user ID not found. Please login again.');
     }
 
+    final UserData? cached = await AuthService.instance.currentUserData();
+    if (cached != null && cached.userID > 0) {
+      return UserDetails(
+        userId: cached.userID,
+        userName: cached.userName,
+        userTypeId: cached.userTypeID,
+        regionId: cached.regionID,
+      );
+    }
+
     return UserService.instance.fetchUserById(userId);
   }
 
   String _combinedPaymentMode() {
-    final Set<String> modes = widget.payments.map((p) => p.mode.label).toSet();
+    final Set<String> modes = widget.payments.map((p) => p.mode.name).toSet();
     if (modes.length == 1) {
       return modes.first;
     }
@@ -1282,7 +1355,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
           'ChequeNo': 'N/A',
           'FundID': 0,
           'FundName': item.fundType,
-          'PaymentMode': item.mode.label,
+          'PaymentMode': item.mode.name,
           'Deleted': false,
           'CreatedOn': utcNow,
           'CreatedBy': createdBy,

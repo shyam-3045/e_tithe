@@ -275,6 +275,11 @@ class _NewDonorPageState extends State<NewDonorPage> {
     return '$y-$m-$d';
   }
 
+  String _toCamelCase(String str) {
+    if (str.isEmpty) return '';
+    return str[0].toLowerCase() + str.substring(1);
+  }
+
   void _addDependentDraft() {
     final name = _dependentNameController.text.trim();
     final relationship = _dependentRelationshipController.text.trim();
@@ -363,7 +368,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'maritalStatus': (_selectedMaritalStatus ?? '').trim(),
       'regionID': _userData?.regionID ?? 0,
       'areaID': selectedAreaId,
-      'userType': _userData?.userTypeName ?? '',
+      'userType': _toCamelCase(_userData?.userTypeName ?? ''),
       'mobile': _mobileController.text.trim(),
       'whatsAppNumber': _whatsAppController.text.trim(),
       'email': _emailController.text.trim(),

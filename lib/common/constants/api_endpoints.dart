@@ -7,6 +7,7 @@ class ApiEndpoints {
   static const String region = '/api/Region';
   static String userById(int userId) => '/api/User/$userId';
   static const String receipt = '/api/Receipt';
+  static const String receiptGenerateNo = '/api/Receipt/GenerateReceiptNo';
   static const String company = '/api/Company';
   static const String paymentMode = '/api/PaymentMode';
 }

@@ -182,6 +182,58 @@ class ReceiptService {
 
   final http.Client _client;
 
+  Future<String> generateReceiptNo({
+    required int regionId,
+    required String receiptDate,
+  }) async {
+    final Uri uri = ApiConfig.uri(ApiEndpoints.receiptGenerateNo).replace(
+      queryParameters: <String, String>{
+        'RegionID': regionId.toString(),
+        'ReceiptDate': receiptDate,
+      },
+    );
+    final Map<String, String> headers = await AuthService.instance
+        .authenticatedJsonHeaders();
+
+    final http.Response response = await _client.get(uri, headers: headers);
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final String message =
+          _extractErrorMessage(response.body) ?? response.body.trim();
+      final String suffix = message.isEmpty
+          ? 'Status ${response.statusCode}'
+          : message;
+      throw Exception('Failed to generate receipt number. $suffix');
+    }
+
+    final String body = response.body.trim();
+    if (body.isEmpty) {
+      throw Exception('Empty receipt number response.');
+    }
+
+    Object decoded;
+    try {
+      decoded = jsonDecode(body);
+    } catch (_) {
+      return body;
+    }
+
+    if (decoded is String) return decoded.trim();
+    if (decoded is num) return decoded.toString();
+    if (decoded is Map<String, dynamic>) {
+      final Object? data =
+          decoded['data'] ?? decoded['result'] ?? decoded['receiptNo'];
+      if (data is String) return data.trim();
+      if (data is num) return data.toString();
+
+      final Object? alt = decoded['receiptID'] ?? decoded['receiptId'];
+      if (alt is String) return alt.trim();
+      if (alt is num) return alt.toString();
+    }
+
+    throw Exception('Unexpected receipt number response.');
+  }
+
   Future<Map<String, dynamic>> createReceipt({
     required Map<String, dynamic> payload,
   }) async {
@@ -189,13 +241,18 @@ class ReceiptService {
     final Map<String, String> headers = await AuthService.instance
         .authenticatedJsonHeaders();
 
+    final Map<String, dynamic> requestBody = <String, dynamic>{
+      'receiptDto': payload,
+      ...payload,
+    };
+
     print('[API] URL: $uri');
-    print('[API] Payload: ${jsonEncode(payload)}');
+    print('[API] Payload: ${jsonEncode(requestBody)}');
 
     final http.Response response = await _client.post(
       uri,
       headers: headers,
-      body: jsonEncode(payload),
+      body: jsonEncode(requestBody),
     );
 
     print('[API] Response: ${response.statusCode} ${response.body}');

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../common/constants/app_colors.dart';
 import '../../common/models/user_data.dart';
 import '../../common/services/auth_service.dart';
-import '../../common/services/company_service.dart';
 import '../../common/services/donor_service.dart';
 import '../../common/services/payment_mode_service.dart';
 import '../../common/services/receipt_service.dart';
@@ -32,9 +31,6 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
   final TextEditingController _notesController = TextEditingController();
 
   final List<_ReceiptPaymentEntry> _payments = <_ReceiptPaymentEntry>[];
-  List<CompanyInfo> _companies = <CompanyInfo>[];
-  int? _selectedCompanyId;
-  bool _isLoadingCompanies = false;
   List<PaymentModeInfo> _paymentModes = <PaymentModeInfo>[];
   bool _isLoadingPaymentModes = false;
 
@@ -124,43 +120,6 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     }
   }
 
-  Future<void> _loadCompanies() async {
-    setState(() {
-      _isLoadingCompanies = true;
-    });
-
-    try {
-      final List<CompanyInfo> companies = await CompanyService.instance
-          .fetchCompanies();
-      if (!mounted) return;
-
-      setState(() {
-        _companies = companies;
-        if (_companies.isNotEmpty) {
-          final bool hasExisting = _companies.any(
-            (item) => item.companyId == _selectedCompanyId,
-          );
-          if (!hasExisting) {
-            _selectedCompanyId = _companies.first.companyId;
-          }
-        } else {
-          _selectedCompanyId = null;
-        }
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _companies = <CompanyInfo>[];
-        _selectedCompanyId = null;
-      });
-    } finally {
-      if (!mounted) return;
-      setState(() {
-        _isLoadingCompanies = false;
-      });
-    }
-  }
-
   Future<void> _loadPaymentModes() async {
     setState(() {
       _isLoadingPaymentModes = true;
@@ -187,20 +146,6 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     }
   }
 
-  String get _selectedCompanyName {
-    final int? selectedId = _selectedCompanyId;
-    if (selectedId == null) {
-      return '';
-    }
-
-    for (final CompanyInfo company in _companies) {
-      if (company.companyId == selectedId) {
-        return company.companyName;
-      }
-    }
-    return '';
-  }
-
   @override
   void initState() {
     super.initState();
@@ -212,7 +157,6 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     _addressLines = <String>[];
     _pincode = '';
     _loadDonorHeader();
-    _loadCompanies();
     _loadPaymentModes();
   }
 
@@ -278,10 +222,6 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       errors.add('Please select Month.');
     }
 
-    if (_selectedCompanyId == null) {
-      errors.add('Please select Company.');
-    }
-
     if (_payments.isEmpty) {
       errors.add('Please add at least one payment (Add Pay).');
     }
@@ -313,8 +253,8 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
           donorDisplayName: _donorDisplayName,
           month: _selectedMonth,
           year: _selectedYear,
-          companyId: _selectedCompanyId!,
-          companyName: _selectedCompanyName,
+          companyId: 0,
+          companyName: '',
           notes: _notesController.text.trim(),
           payments: List<_ReceiptPaymentEntry>.unmodifiable(_payments),
           totalAmount: _totalAmount,
@@ -562,64 +502,6 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
                       });
                     },
                   ),
-                  const SizedBox(height: 12),
-                  DropdownButtonFormField<int>(
-                    value:
-                        _companies.any(
-                          (item) => item.companyId == _selectedCompanyId,
-                        )
-                        ? _selectedCompanyId
-                        : null,
-                    isExpanded: true,
-                    decoration: _fieldDecoration(
-                      label: 'Company',
-                      icon: Icons.business_rounded,
-                    ),
-                    dropdownColor: AppColors.surface,
-                    icon: const Icon(
-                      Icons.keyboard_arrow_down_rounded,
-                      color: AppColors.textGrey,
-                    ),
-                    hint: Text(
-                      _isLoadingCompanies
-                          ? 'Loading companies...'
-                          : 'Select company',
-                      style: TextStyle(
-                        color: AppColors.textGrey.withOpacity(0.9),
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    items: _companies
-                        .map(
-                          (company) => DropdownMenuItem<int>(
-                            value: company.companyId,
-                            child: Text(
-                              company.companyName,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                color: AppColors.textDark,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ),
-                        )
-                        .toList(),
-                    onChanged: _isLoadingCompanies
-                        ? null
-                        : (value) {
-                            if (value == null) return;
-                            setState(() {
-                              _selectedCompanyId = value;
-                            });
-                          },
-                  ),
-                  if (_isLoadingCompanies)
-                    const Padding(
-                      padding: EdgeInsets.only(top: 8),
-                      child: LinearProgressIndicator(minHeight: 2),
-                    ),
                   const SizedBox(height: 12),
                   TextFormField(
                     controller: _notesController,
@@ -1309,28 +1191,30 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     final int totalAmount = widget.totalAmount.round();
     final String createdBy = user.userName;
     final String modifiedBy = user.userName;
-    final String receiptNo = 'APP-${now.millisecondsSinceEpoch}';
     final String notes = widget.notes.trim();
-    final String companyName = widget.companyName.trim().isEmpty
-        ? 'N/A'
-        : widget.companyName.trim();
+    const String companyName = '';
     final int regionId = (widget.regionId != null && widget.regionId! > 0)
         ? widget.regionId!
         : (donor.regionId > 0 ? donor.regionId : user.regionId);
+    final String receiptNo = await ReceiptService.instance.generateReceiptNo(
+      regionId: regionId,
+      receiptDate: _dateOnly(now),
+    );
     final String regionName = regionId.toString();
     final String repType = user.userTypeId.toString();
     final String repName = user.userName;
+    const int receiptId = 0;
 
     return <String, dynamic>{
-      'ReceiptID': 0,
+      'ReceiptID': receiptId,
       'Amount': totalAmount,
       'Cancel': 0,
-      'CompanyID': widget.companyId,
+      'CompanyID': 0,
       'RegionID': regionId,
       'RepID': user.userId,
       'Notes': notes,
       'PaymentMonth': paymentMonth,
-      'SignURL': 'signed-from-mobile',
+      'SignURL': '',
       'Deleted': false,
       'CreatedOn': utcNow,
       'CreatedBy': createdBy,
@@ -1348,7 +1232,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
       'ReceiptLines': widget.payments.map((item) {
         return <String, dynamic>{
           'ReceiptLineID': 0,
-          'ReceiptID': 0,
+          'ReceiptID': receiptId,
           'Amount': item.amount.round(),
           'BankName': 'N/A',
           'ChequeDate': utcNow,
@@ -1417,6 +1301,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.primaryPurple,
       appBar: AppBar(title: const Text('Signature & Submit')),
       bottomNavigationBar: AnimatedBuilder(
         animation: _signatureController,
@@ -1430,113 +1315,108 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
           );
         },
       ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              _DonorHeaderCard(
-                donorDisplayName: widget.donorDisplayName,
-                addressLines: const [],
-                pincode: '',
-              ),
-              const SizedBox(height: 16),
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AppColors.borderGrey),
+      body: Container(
+        color: AppColors.primaryPurple,
+        child: SafeArea(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                _DonorHeaderCard(
+                  donorDisplayName: widget.donorDisplayName,
+                  addressLines: const [],
+                  pincode: '',
                 ),
-                padding: const EdgeInsets.all(14),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Month: ${widget.month} ${widget.year}',
-                      style: const TextStyle(
-                        color: AppColors.textGrey,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Company: ${widget.companyName}',
-                      style: const TextStyle(
-                        color: AppColors.textGrey,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    ...widget.payments.map(
-                      (p) => Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                p.fundType,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  color: AppColors.textDark,
-                                  fontWeight: FontWeight.w800,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Text(
-                              '₹${p.amount.toStringAsFixed(0)}',
-                              style: const TextStyle(
-                                color: AppColors.primaryPurple,
-                                fontWeight: FontWeight.w900,
-                              ),
-                            ),
-                          ],
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: AppColors.borderGrey),
+                  ),
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Month: ${widget.month} ${widget.year}',
+                        style: const TextStyle(
+                          color: AppColors.textGrey,
+                          fontWeight: FontWeight.w800,
                         ),
                       ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Total: ₹${widget.totalAmount.toStringAsFixed(0)}',
-                      textAlign: TextAlign.right,
-                      style: const TextStyle(
-                        color: AppColors.statusBarPink,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w900,
+                      const SizedBox(height: 10),
+                      ...widget.payments.map(
+                        (p) => Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  p.fundType,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: AppColors.textDark,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Text(
+                                '₹${p.amount.toStringAsFixed(0)}',
+                                style: const TextStyle(
+                                  color: AppColors.primaryPurple,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
+                      const SizedBox(height: 6),
+                      Text(
+                        'Total: ₹${widget.totalAmount.toStringAsFixed(0)}',
+                        textAlign: TextAlign.right,
+                        style: const TextStyle(
+                          color: AppColors.statusBarPink,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 18),
-              const Text(
-                'Donor Signature',
-                style: TextStyle(
-                  color: AppColors.textGrey,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
+                const SizedBox(height: 18),
+                const Text(
+                  'Donor Signature',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 10),
-              AnimatedBuilder(
-                animation: _signatureController,
-                builder: (context, _) {
-                  return _SignaturePad(
-                    controller: _signatureController,
-                    height: 220,
-                  );
-                },
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Please ask the donor to sign inside the box.',
-                style: TextStyle(
-                  color: AppColors.textGrey.withOpacity(0.85),
-                  fontWeight: FontWeight.w600,
+                const SizedBox(height: 10),
+                AnimatedBuilder(
+                  animation: _signatureController,
+                  builder: (context, _) {
+                    return _SignaturePad(
+                      controller: _signatureController,
+                      height: 220,
+                    );
+                  },
                 ),
-              ),
-            ],
+                const SizedBox(height: 8),
+                Text(
+                  'Please ask the donor to sign inside the box.',
+                  style: TextStyle(
+                    color: Colors.white.withOpacity(0.85),
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

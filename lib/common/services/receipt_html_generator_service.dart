@@ -6,14 +6,19 @@ class ReceiptHtmlGeneratorService {
   static final ReceiptHtmlGeneratorService instance =
       ReceiptHtmlGeneratorService._();
 
-  /// Generate clean tabular black & white receipt HTML for WebView
-  String generateReceiptHtml(ReceiptExportData data) {
-    final notesSection = data.notes.trim().isNotEmpty
-        ? '''
-        <div class="notes-box">
-          <strong>Notes:</strong> ${_escapeHtml(data.notes)}
-        </div>'''
-        : '';
+  /// Generate receipt HTML for WebView
+  String generateReceiptHtml(ReceiptExportData data, {String? logoBase64}) {
+    final String logoTag = (logoBase64 == null || logoBase64.trim().isEmpty)
+        ? ''
+        : '<img class="logo" src="data:image/jpeg;base64,$logoBase64" alt="Logo" />';
+
+    final String notesLine = data.notes.trim().isNotEmpty
+        ? _escapeHtml(data.notes)
+        : '-';
+
+    final String amountText = data.amount.trim().isEmpty
+        ? ''
+        : data.amount.trim();
 
     return '''<!DOCTYPE html>
 <html>
@@ -22,104 +27,131 @@ class ReceiptHtmlGeneratorService {
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Receipt ${data.receiptNo}</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: 'Times New Roman', Times, serif; background: #f0f0f0; padding: 20px; }
-        .receipt { max-width: 580px; margin: 0 auto; background: #fff; border: 2px solid #000; padding: 24px; }
+                * { margin: 0; padding: 0; box-sizing: border-box; }
+                body { font-family: Arial, Helvetica, sans-serif; background: #ffffff; padding: 12px; color: #111; }
+                .receipt { max-width: 820px; margin: 0 auto; background: #fff; border: 1.5px solid #000; }
+                .row { display: flex; justify-content: space-between; align-items: center; }
+                .col { flex: 1; }
 
-        h1 { text-align: center; font-size: 20px; letter-spacing: 4px; text-transform: uppercase;
-             border-bottom: 2px solid #000; padding-bottom: 8px; margin-bottom: 6px; }
-        .receipt-no { text-align: center; font-size: 12px; margin-bottom: 18px; }
+                .header { border-bottom: 1px solid #000; padding: 10px 12px; }
+                .logo-wrap { width: 86px; height: 86px; border: 1px solid #000; display: flex; align-items: center; justify-content: center; }
+                .logo { width: 80px; height: 80px; object-fit: contain; }
+                .org-title { text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.3px; }
+                .org-sub { text-align: center; font-size: 12px; font-weight: 600; margin-top: 2px; }
+                .org-line { text-align: center; font-size: 12px; margin-top: 2px; }
 
-        table { width: 100%; border-collapse: collapse; margin-bottom: 14px; }
-        td, th { border: 1px solid #000; padding: 7px 10px; font-size: 13px; vertical-align: top; }
-        th { background: #000; color: #fff; text-align: left; font-size: 12px;
-             letter-spacing: 1px; text-transform: uppercase; }
+                .section { border-bottom: 1px solid #000; padding: 8px 12px; }
+                .section-title { text-align: center; font-weight: 700; font-size: 12px; letter-spacing: 0.4px; }
 
-        .donor-name { font-weight: bold; font-size: 15px; }
-        .amount-row td { font-size: 15px; font-weight: bold; }
-        .label-col { width: 40%; color: #333; }
+                .meta { display: flex; justify-content: space-between; gap: 16px; }
+                .meta-left { font-size: 12px; }
+                .meta-right { text-align: right; font-size: 12px; min-width: 140px; }
 
-        .notes-box { border: 1px solid #000; padding: 8px 10px; font-size: 12px;
-                     line-height: 1.5; margin-bottom: 14px; }
+                .label { font-weight: 700; }
+                .value { font-weight: 600; }
 
-        .sig-table { width: 100%; border-collapse: collapse; margin-top: 36px; }
-        .sig-table td { border: none; text-align: center; font-size: 12px; padding-top: 6px; width: 50%; }
-        .sig-line { border-top: 1px solid #000; padding-top: 5px; margin: 0 20px; }
+                .grid { width: 100%; border-collapse: collapse; }
+                .grid th, .grid td { border-top: 1px solid #000; padding: 8px 10px; font-size: 12px; }
+                .grid th { font-weight: 700; text-align: center; }
+                .grid td:first-child { border-right: 1px solid #000; }
+                .grid td:last-child { text-align: right; }
+                .grid .total td { font-weight: 800; }
 
-        .footer { text-align: center; font-size: 11px; color: #555; margin-top: 14px;
-                  border-top: 1px solid #000; padding-top: 8px; line-height: 1.6; }
+                .note-line { font-size: 12px; padding: 8px 12px; border-bottom: 1px solid #000; }
+                .sign-row { display: flex; justify-content: flex-end; padding: 18px 12px 8px; font-size: 12px; }
+                .sign-block { text-align: center; min-width: 220px; }
+                .sign-line { border-top: 1px solid #000; margin-top: 22px; padding-top: 4px; font-weight: 700; }
 
-        @media print {
-            body { background: white; padding: 0; }
-            .receipt { border: none; padding: 0; }
-        }
+                .footer { text-align: center; font-size: 10.5px; padding: 10px 12px 12px; }
+                .footer .verse { font-weight: 700; margin-bottom: 4px; }
+
+                @media (max-width: 640px) {
+                    body { padding: 6px; }
+                    .row { flex-direction: column; gap: 8px; }
+                    .logo-wrap { width: 72px; height: 72px; }
+                    .logo { width: 66px; height: 66px; }
+                    .org-title { font-size: 12px; }
+                    .org-sub, .org-line, .meta-left, .meta-right, .grid th, .grid td { font-size: 11px; }
+                    .meta { flex-direction: column; }
+                    .meta-right { text-align: left; }
+                }
+
+                @media print {
+                    body { padding: 0; }
+                    .receipt { border: 1px solid #000; }
+                }
     </style>
 </head>
 <body>
-    <div class="receipt">
+        <div class="receipt">
+            <div class="header">
+                <div class="row">
+                    <div class="logo-wrap">
+                        $logoTag
+                    </div>
+                    <div class="col">
+                        <div class="org-title">SCRIPTURE UNION &amp; CSSM COUNCIL OF INDIA</div>
+                        <div class="org-sub">Society Registration Number : 1/1975</div>
+                        <div class="org-sub">TAMIL NADU SOUTH</div>
+                        <div class="org-line">No.56 C/4 (Upstairs) St. Mary's Street, Perumalpura mTirunelveli-627007</div>
+                    </div>
+                    <div style="width: 86px;"></div>
+                </div>
+            </div>
 
-        <h1>Receipt</h1>
-        <div class="receipt-no">Receipt No: <strong>${_escapeHtml(data.receiptNo)}</strong></div>
+            <div class="section">
+                <div class="section-title">RECEIPT</div>
+            </div>
 
-        <table>
-            <tr><th colspan="2">Donor Details</th></tr>
-            <tr>
-                <td class="label-col">Name</td>
-                <td class="donor-name">${_escapeHtml(data.donorName)}</td>
-            </tr>
-            <tr>
-                <td class="label-col">Address</td>
-                <td>${_escapeHtml(data.address)}</td>
-            </tr>
-            <tr>
-                <td class="label-col">Pincode</td>
-                <td>${_escapeHtml(data.pincode)}</td>
-            </tr>
-        </table>
+            <div class="section meta">
+                <div class="meta-left">
+                    <div>Received with thanks from <span class="value">${_escapeHtml(data.donorName)}</span></div>
+                    <div style="margin-top: 8px;">Address:</div>
+                    <div class="value">${_escapeHtml(data.address)}</div>
+                    <div class="value">${_escapeHtml(data.pincode)}</div>
+                </div>
+                <div class="meta-right">
+                    <div><span class="label">Receipt #:</span> ${_escapeHtml(data.receiptNo)}</div>
+                    <div style="margin-top: 6px;"><span class="label">Date :</span> ${_escapeHtml(data.receiptDate)}</div>
+                </div>
+            </div>
 
-        <table>
-            <tr><th colspan="2">Transaction Details</th></tr>
-            <tr>
-                <td class="label-col">Receipt Date</td>
-                <td>${_escapeHtml(data.receiptDate)}</td>
-            </tr>
-            <tr>
-                <td class="label-col">Month</td>
-                <td>${_escapeHtml(data.monthLabel)}</td>
-            </tr>
-            <tr>
-                <td class="label-col">Fund Type</td>
-                <td>${_escapeHtml(data.fundType)}</td>
-            </tr>
-            <tr>
-                <td class="label-col">Payment Mode</td>
-                <td>${_escapeHtml(data.paymentMode)}</td>
-            </tr>
-        </table>
+            <table class="grid">
+                <thead>
+                    <tr>
+                        <th>Particulars</th>
+                        <th>Amount</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>${_escapeHtml(data.fundType)}</td>
+                        <td>${_escapeHtml(amountText)}</td>
+                    </tr>
+                    <tr class="total">
+                        <td style="text-align:right;">Total</td>
+                        <td>${_escapeHtml(amountText)}</td>
+                    </tr>
+                </tbody>
+            </table>
 
-        <table>
-            <tr><th colspan="2">Amount</th></tr>
-            <tr class="amount-row">
-                <td class="label-col">Total Amount Received</td>
-                <td>${_escapeHtml(data.amount)}</td>
-            </tr>
-        </table>
+            <div class="note-line">Received as: <span class="value">${_escapeHtml(data.paymentMode)}</span></div>
+            <div class="note-line">Rupees ${_escapeHtml(amountText)} only</div>
+            <div class="note-line">Notes: ${notesLine}</div>
 
-        $notesSection
+            <div class="sign-row">
+                <div class="sign-block">
+                    for Scripture Union &amp; CSSM council of India
+                    <div class="sign-line">Authorised Signatory</div>
+                </div>
+            </div>
 
-        <table class="sig-table">
-            <tr>
-                <td><div class="sig-line">Donor Signature</div></td>
-                <td><div class="sig-line">Authorized Signature</div></td>
-            </tr>
-        </table>
-
-        <div class="footer">
-            Thank you for your generous donation<br>
-            Generated on: ${DateTime.now().toString().split('.')[0]}
+            <div class="footer">
+                <div class="verse">"Your word is lamp to my feet and a light for my path. Psalms 119:105"</div>
+                <div>Head Office: No. 27 First Main Road, United India Nagar, Ayanavaram, Chennai-600023</div>
+                <div>Phone: 044-2674 0137  Email: scriptureunionindia@gmail.com</div>
+            </div>
         </div>
-
-    </div>
 </body>
 </html>''';
   }

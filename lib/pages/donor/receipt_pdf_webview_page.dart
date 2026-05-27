@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -26,9 +27,10 @@ class ReceiptPdfWebViewPage extends StatefulWidget {
 
 class _ReceiptPdfWebViewPageState extends State<ReceiptPdfWebViewPage> {
   static const MethodChannel _downloadChannel = MethodChannel('download_saver');
-  late WebViewController _webViewController;
+  WebViewController? _webViewController;
   bool _isLoading = true;
   bool _isActionRunning = false;
+  bool _isWebViewReady = false;
   static const Duration _pdfTimeout = Duration(seconds: 20);
 
   @override
@@ -37,33 +39,57 @@ class _ReceiptPdfWebViewPageState extends State<ReceiptPdfWebViewPage> {
     _initializeWebView();
   }
 
-  void _initializeWebView() {
-    _webViewController = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageFinished: (String url) {
-            if (mounted) {
-              setState(() => _isLoading = false);
-            }
-          },
-          onWebResourceError: (WebResourceError error) {
-            if (mounted) {
-              setState(() => _isLoading = false);
-              CommonAlert.showInfo(
-                context,
-                title: 'Error loading receipt',
-                message: error.description,
-              );
-            }
-          },
-        ),
-      )
-      ..loadHtmlString(
+  Future<void> _initializeWebView() async {
+    try {
+      final String logoBase64 = await _loadLogoBase64();
+      final WebViewController controller = WebViewController()
+        ..setJavaScriptMode(JavaScriptMode.unrestricted)
+        ..setNavigationDelegate(
+          NavigationDelegate(
+            onPageFinished: (String url) {
+              if (mounted) {
+                setState(() => _isLoading = false);
+              }
+            },
+            onWebResourceError: (WebResourceError error) {
+              if (mounted) {
+                setState(() => _isLoading = false);
+                CommonAlert.showInfo(
+                  context,
+                  title: 'Error loading receipt',
+                  message: error.description,
+                );
+              }
+            },
+          ),
+        );
+
+      await controller.loadHtmlString(
         ReceiptHtmlGeneratorService.instance.generateReceiptHtml(
           widget.receiptData,
+          logoBase64: logoBase64,
         ),
       );
+
+      if (!mounted) return;
+      setState(() {
+        _webViewController = controller;
+        _isWebViewReady = true;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() => _isLoading = false);
+      CommonAlert.showInfo(
+        context,
+        title: 'Error loading receipt',
+        message: error.toString(),
+      );
+    }
+  }
+
+  Future<String> _loadLogoBase64() async {
+    final ByteData bytes = await rootBundle.load('logo.jpeg');
+    return base64Encode(bytes.buffer.asUint8List());
   }
 
   Future<File> _buildPdfFile({required Directory targetDir}) async {
@@ -79,6 +105,10 @@ class _ReceiptPdfWebViewPageState extends State<ReceiptPdfWebViewPage> {
   Future<Uint8List> _buildPdfBytes() async {
     final ReceiptExportData data = widget.receiptData;
     final pw.Document doc = pw.Document();
+    final ByteData logoBytes = await rootBundle.load('logo.jpeg');
+    final pw.MemoryImage logoImage = pw.MemoryImage(
+      logoBytes.buffer.asUint8List(),
+    );
 
     final String amountValue = data.amount.trim();
     final String amountText = amountValue.isEmpty
@@ -90,163 +120,348 @@ class _ReceiptPdfWebViewPageState extends State<ReceiptPdfWebViewPage> {
     doc.addPage(
       pw.Page(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(24),
+        margin: const pw.EdgeInsets.all(18),
         build: (context) {
-          return pw.Column(
-            crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-            children: [
-              pw.Text(
-                'RECEIPT',
-                textAlign: pw.TextAlign.center,
-                style: pw.TextStyle(
-                  fontSize: 18,
-                  fontWeight: pw.FontWeight.bold,
-                  letterSpacing: 2,
+          return pw.Container(
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.black, width: 1),
+            ),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+              children: [
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                    ),
+                  ),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Container(
+                        width: 68,
+                        height: 68,
+                        decoration: pw.BoxDecoration(
+                          border: pw.Border.all(
+                            color: PdfColors.black,
+                            width: 1,
+                          ),
+                        ),
+                        padding: const pw.EdgeInsets.all(4),
+                        child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                      ),
+                      pw.SizedBox(width: 8),
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                          children: [
+                            pw.Text(
+                              'SCRIPTURE UNION & CSSM COUNCIL OF INDIA',
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                fontSize: 11,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.SizedBox(height: 2),
+                            pw.Text(
+                              'Society Registration Number : 1/1975',
+                              textAlign: pw.TextAlign.center,
+                              style: const pw.TextStyle(fontSize: 9),
+                            ),
+                            pw.Text(
+                              'TAMIL NADU SOUTH',
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.Text(
+                              "No.56 C/4 (Upstairs) St. Mary's Street, Perumalpura mTirunelveli-627007",
+                              textAlign: pw.TextAlign.center,
+                              style: const pw.TextStyle(fontSize: 9),
+                            ),
+                          ],
+                        ),
+                      ),
+                      pw.SizedBox(width: 68),
+                    ],
+                  ),
                 ),
-              ),
-              pw.SizedBox(height: 4),
-              pw.Text(
-                'Receipt No: ${data.receiptNo}',
-                textAlign: pw.TextAlign.center,
-                style: const pw.TextStyle(fontSize: 11),
-              ),
-              pw.SizedBox(height: 16),
-              _pdfSection(
-                title: 'Donor Details',
-                rows: [
-                  _pdfRow('Name', data.donorName),
-                  _pdfRow('Address', data.address),
-                  _pdfRow('Pincode', data.pincode),
-                ],
-              ),
-              pw.SizedBox(height: 12),
-              _pdfSection(
-                title: 'Transaction Details',
-                rows: [
-                  _pdfRow('Receipt Date', data.receiptDate),
-                  _pdfRow('Month', data.monthLabel),
-                  _pdfRow('Fund Type', data.fundType),
-                  _pdfRow('Payment Mode', data.paymentMode),
-                ],
-              ),
-              pw.SizedBox(height: 12),
-              _pdfSection(
-                title: 'Amount',
-                rows: [_pdfRow('Total Amount Received', amountText)],
-              ),
-              if (data.notes.trim().isNotEmpty) ...[
-                pw.SizedBox(height: 12),
-                _pdfNotes(data.notes),
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(vertical: 6),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                    ),
+                  ),
+                  child: pw.Text(
+                    'RECEIPT',
+                    textAlign: pw.TextAlign.center,
+                    style: pw.TextStyle(
+                      fontSize: 11,
+                      fontWeight: pw.FontWeight.bold,
+                      letterSpacing: 1,
+                    ),
+                  ),
+                ),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                    ),
+                  ),
+                  child: pw.Row(
+                    crossAxisAlignment: pw.CrossAxisAlignment.start,
+                    children: [
+                      pw.Expanded(
+                        child: pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.start,
+                          children: [
+                            pw.Text(
+                              'Received with thanks from ${data.donorName}',
+                              style: pw.TextStyle(
+                                fontSize: 9.5,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            pw.SizedBox(height: 6),
+                            pw.Text(
+                              'Address:',
+                              style: const pw.TextStyle(fontSize: 9),
+                            ),
+                            pw.Text(
+                              data.address,
+                              style: const pw.TextStyle(fontSize: 9),
+                            ),
+                            pw.Text(
+                              data.pincode,
+                              style: const pw.TextStyle(fontSize: 9),
+                            ),
+                          ],
+                        ),
+                      ),
+                      pw.SizedBox(width: 12),
+                      pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.end,
+                        children: [
+                          pw.Text(
+                            'Receipt #: ${data.receiptNo}',
+                            style: const pw.TextStyle(fontSize: 9.5),
+                          ),
+                          pw.SizedBox(height: 4),
+                          pw.Text(
+                            'Date : ${data.receiptDate}',
+                            style: const pw.TextStyle(fontSize: 9.5),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                pw.Table(
+                  border: const pw.TableBorder(
+                    top: pw.BorderSide(color: PdfColors.black, width: 1),
+                    bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                    verticalInside: pw.BorderSide(
+                      color: PdfColors.black,
+                      width: 1,
+                    ),
+                    horizontalInside: pw.BorderSide(
+                      color: PdfColors.black,
+                      width: 1,
+                    ),
+                  ),
+                  columnWidths: const {
+                    0: pw.FlexColumnWidth(3.2),
+                    1: pw.FlexColumnWidth(1.4),
+                  },
+                  children: [
+                    pw.TableRow(
+                      decoration: const pw.BoxDecoration(
+                        color: PdfColors.white,
+                      ),
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.symmetric(vertical: 6),
+                          child: pw.Text(
+                            'Particulars',
+                            textAlign: pw.TextAlign.center,
+                            style: pw.TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.symmetric(vertical: 6),
+                          child: pw.Text(
+                            'Amount',
+                            textAlign: pw.TextAlign.center,
+                            style: pw.TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text(
+                            data.fundType,
+                            style: const pw.TextStyle(fontSize: 9.5),
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text(
+                            amountText,
+                            textAlign: pw.TextAlign.right,
+                            style: const pw.TextStyle(fontSize: 9.5),
+                          ),
+                        ),
+                      ],
+                    ),
+                    pw.TableRow(
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text(
+                            'Total',
+                            textAlign: pw.TextAlign.right,
+                            style: pw.TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.all(6),
+                          child: pw.Text(
+                            amountText,
+                            textAlign: pw.TextAlign.right,
+                            style: pw.TextStyle(
+                              fontSize: 9.5,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                    ),
+                  ),
+                  child: pw.Text(
+                    'Received as: ${data.paymentMode}',
+                    style: const pw.TextStyle(fontSize: 9.5),
+                  ),
+                ),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                    ),
+                  ),
+                  child: pw.Text(
+                    'Rupees $amountText only',
+                    style: const pw.TextStyle(fontSize: 9.5),
+                  ),
+                ),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(8),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                    ),
+                  ),
+                  child: pw.Text(
+                    'Notes: ${data.notes.trim().isEmpty ? '-' : data.notes.trim()}',
+                    style: const pw.TextStyle(fontSize: 9.5),
+                  ),
+                ),
+                pw.Container(
+                  padding: const pw.EdgeInsets.fromLTRB(8, 18, 8, 8),
+                  child: pw.Align(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Column(
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Text(
+                          'for Scripture Union & CSSM council of India',
+                          style: const pw.TextStyle(fontSize: 9),
+                        ),
+                        pw.Container(
+                          margin: const pw.EdgeInsets.only(top: 18),
+                          width: 180,
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(
+                              top: pw.BorderSide(
+                                color: PdfColors.black,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          padding: const pw.EdgeInsets.only(top: 3),
+                          child: pw.Text(
+                            'Authorised Signatory',
+                            textAlign: pw.TextAlign.center,
+                            style: pw.TextStyle(
+                              fontSize: 9,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                pw.Container(
+                  padding: const pw.EdgeInsets.all(8),
+                  child: pw.Column(
+                    children: [
+                      pw.Text(
+                        '"Your word is lamp to my feet and a light for my path. Psalms 119:105"',
+                        textAlign: pw.TextAlign.center,
+                        style: pw.TextStyle(
+                          fontSize: 8.5,
+                          fontWeight: pw.FontWeight.bold,
+                        ),
+                      ),
+                      pw.SizedBox(height: 3),
+                      pw.Text(
+                        'Head Office: No. 27 First Main Road, United India Nagar, Ayanavaram, Chennai-600023',
+                        textAlign: pw.TextAlign.center,
+                        style: const pw.TextStyle(fontSize: 8.2),
+                      ),
+                      pw.Text(
+                        'Phone: 044-2674 0137  Email: scriptureunionindia@gmail.com',
+                        textAlign: pw.TextAlign.center,
+                        style: const pw.TextStyle(fontSize: 8.2),
+                      ),
+                    ],
+                  ),
+                ),
               ],
-              pw.Spacer(),
-              pw.Row(
-                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                children: [
-                  _pdfSignatureLine('Donor Signature'),
-                  _pdfSignatureLine('Authorized Signature'),
-                ],
-              ),
-              pw.SizedBox(height: 14),
-              pw.Text(
-                'Thank you for your generous donation',
-                textAlign: pw.TextAlign.center,
-                style: pw.TextStyle(fontSize: 10, color: PdfColors.grey700),
-              ),
-              pw.SizedBox(height: 2),
-              pw.Text(
-                'Generated on: ${DateTime.now().toString().split('.').first}',
-                textAlign: pw.TextAlign.center,
-                style: pw.TextStyle(fontSize: 9, color: PdfColors.grey600),
-              ),
-            ],
+            ),
           );
         },
       ),
     );
 
     return doc.save();
-  }
-
-  pw.Widget _pdfSection({
-    required String title,
-    required List<pw.Widget> rows,
-  }) {
-    return pw.Container(
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.black),
-      ),
-      child: pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-        children: [
-          pw.Container(
-            color: PdfColors.black,
-            padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-            child: pw.Text(
-              title.toUpperCase(),
-              style: pw.TextStyle(
-                color: PdfColors.white,
-                fontSize: 10,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ),
-          ...rows,
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _pdfRow(String label, String value) {
-    return pw.Container(
-      decoration: pw.BoxDecoration(
-        border: pw.Border(
-          bottom: pw.BorderSide(color: PdfColors.black, width: 0.5),
-        ),
-      ),
-      padding: const pw.EdgeInsets.symmetric(vertical: 6, horizontal: 8),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Container(
-            width: 140,
-            child: pw.Text(
-              label,
-              style: pw.TextStyle(fontSize: 10, color: PdfColors.grey800),
-            ),
-          ),
-          pw.Expanded(
-            child: pw.Text(
-              value.trim().isEmpty ? 'N/A' : value,
-              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  pw.Widget _pdfNotes(String notes) {
-    return pw.Container(
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.black),
-      ),
-      padding: const pw.EdgeInsets.all(8),
-      child: pw.Text(
-        'Notes: ${notes.trim()}',
-        style: const pw.TextStyle(fontSize: 10),
-      ),
-    );
-  }
-
-  pw.Widget _pdfSignatureLine(String label) {
-    return pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.center,
-      children: [
-        pw.Container(width: 160, height: 1, color: PdfColors.black),
-        pw.SizedBox(height: 4),
-        pw.Text(label, style: const pw.TextStyle(fontSize: 9)),
-      ],
-    );
   }
 
   Future<T?> _runAction<T>({
@@ -426,8 +641,9 @@ class _ReceiptPdfWebViewPageState extends State<ReceiptPdfWebViewPage> {
       appBar: AppBar(title: const Text('Receipt'), elevation: 2),
       body: Stack(
         children: [
-          WebViewWidget(controller: _webViewController),
-          if (_isLoading)
+          if (_isWebViewReady && _webViewController != null)
+            WebViewWidget(controller: _webViewController!),
+          if (_isLoading || !_isWebViewReady)
             Container(
               color: Colors.white.withValues(alpha: 0.7),
               alignment: Alignment.center,

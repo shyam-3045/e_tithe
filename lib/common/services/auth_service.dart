@@ -101,6 +101,7 @@ class AuthService {
     final Map<String, String> loginPayload = <String, String>{
       'email': email.trim(),
       'password': password,
+      'userMode': '2',
     };
 
     print('[API] Login URL: $uri');

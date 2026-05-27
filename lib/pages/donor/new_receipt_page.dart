@@ -1301,7 +1301,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.primaryPurple,
+      backgroundColor: AppColors.softPurple,
       appBar: AppBar(title: const Text('Signature & Submit')),
       bottomNavigationBar: AnimatedBuilder(
         animation: _signatureController,
@@ -1315,108 +1315,105 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
           );
         },
       ),
-      body: Container(
-        color: AppColors.primaryPurple,
-        child: SafeArea(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _DonorHeaderCard(
-                  donorDisplayName: widget.donorDisplayName,
-                  addressLines: const [],
-                  pincode: '',
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 110),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _DonorHeaderCard(
+                donorDisplayName: widget.donorDisplayName,
+                addressLines: const [],
+                pincode: '',
+              ),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.borderGrey),
                 ),
-                const SizedBox(height: 16),
-                Container(
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: AppColors.borderGrey),
-                  ),
-                  padding: const EdgeInsets.all(14),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Month: ${widget.month} ${widget.year}',
-                        style: const TextStyle(
-                          color: AppColors.textGrey,
-                          fontWeight: FontWeight.w800,
-                        ),
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Month: ${widget.month} ${widget.year}',
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                        fontWeight: FontWeight.w700,
                       ),
-                      const SizedBox(height: 10),
-                      ...widget.payments.map(
-                        (p) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  p.fundType,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: AppColors.textDark,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Text(
-                                '₹${p.amount.toStringAsFixed(0)}',
+                    ),
+                    const SizedBox(height: 10),
+                    ...widget.payments.map(
+                      (p) => Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                p.fundType,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
-                                  color: AppColors.primaryPurple,
-                                  fontWeight: FontWeight.w900,
+                                  color: AppColors.textDark,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              '₹${p.amount.toStringAsFixed(0)}',
+                              style: const TextStyle(
+                                color: AppColors.primaryPurple,
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        'Total: ₹${widget.totalAmount.toStringAsFixed(0)}',
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(
-                          color: AppColors.statusBarPink,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w900,
-                        ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Total: ₹${widget.totalAmount.toStringAsFixed(0)}',
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                        color: AppColors.statusBarPink,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w800,
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 18),
-                const Text(
-                  'Donor Signature',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w800,
-                  ),
+              ),
+              const SizedBox(height: 18),
+              const Text(
+                'Donor Signature',
+                style: TextStyle(
+                  color: AppColors.textDark,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w800,
                 ),
-                const SizedBox(height: 10),
-                AnimatedBuilder(
-                  animation: _signatureController,
-                  builder: (context, _) {
-                    return _SignaturePad(
-                      controller: _signatureController,
-                      height: 220,
-                    );
-                  },
+              ),
+              const SizedBox(height: 10),
+              AnimatedBuilder(
+                animation: _signatureController,
+                builder: (context, _) {
+                  return _SignaturePad(
+                    controller: _signatureController,
+                    height: 220,
+                  );
+                },
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Please ask the donor to sign inside the box.',
+                style: TextStyle(
+                  color: AppColors.textGrey,
+                  fontWeight: FontWeight.w600,
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Please ask the donor to sign inside the box.',
-                  style: TextStyle(
-                    color: Colors.white.withOpacity(0.85),
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -1451,9 +1448,9 @@ class _SignatureBottomBar extends StatelessWidget {
           ),
           boxShadow: [
             BoxShadow(
-              color: Color(0x1A000000),
-              blurRadius: 18,
-              offset: Offset(0, -8),
+              color: Color(0x22000000),
+              blurRadius: 12,
+              offset: Offset(0, -6),
             ),
           ],
         ),
@@ -1461,12 +1458,12 @@ class _SignatureBottomBar extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _BottomAction(
+            _SignatureAction(
               label: 'Clear',
               icon: Icons.delete_outline_rounded,
               onTap: onClear,
             ),
-            _BottomAction(
+            _SignatureAction(
               label: 'Back',
               icon: Icons.arrow_back_ios_new_rounded,
               onTap: onBack,
@@ -1475,13 +1472,51 @@ class _SignatureBottomBar extends StatelessWidget {
               opacity: canSubmit && !isSubmitting ? 1 : 0.55,
               child: IgnorePointer(
                 ignoring: !canSubmit || isSubmitting,
-                child: _BottomAction(
+                child: _SignatureAction(
                   label: isSubmitting ? 'Saving...' : 'Submit',
                   icon: isSubmitting
                       ? Icons.hourglass_top_rounded
                       : Icons.check_circle_outline_rounded,
                   onTap: onSubmit,
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SignatureAction extends StatelessWidget {
+  const _SignatureAction({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
               ),
             ),
           ],
@@ -1541,10 +1576,7 @@ class _SignaturePadState extends State<_SignaturePad> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.statusBarPink.withOpacity(0.55),
-          width: 1.4,
-        ),
+        border: Border.all(color: AppColors.borderGrey, width: 1.4),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../common/constants/app_colors.dart';
 import '../../common/models/user_data.dart';
 import '../../common/services/auth_service.dart';
+import '../../common/services/company_service.dart';
 import '../../common/services/donor_service.dart';
 import '../../common/services/payment_mode_service.dart';
 import '../../common/services/receipt_service.dart';
@@ -33,6 +34,10 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
   final List<_ReceiptPaymentEntry> _payments = <_ReceiptPaymentEntry>[];
   List<PaymentModeInfo> _paymentModes = <PaymentModeInfo>[];
   bool _isLoadingPaymentModes = false;
+
+  List<CompanyInfo> _companies = <CompanyInfo>[];
+  CompanyInfo? _selectedCompany;
+  bool _isLoadingCompanies = false;
 
   late String _donorDisplayName;
   List<String> _addressLines = <String>[];
@@ -146,6 +151,36 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     }
   }
 
+  Future<void> _loadCompanies() async {
+    setState(() {
+      _isLoadingCompanies = true;
+    });
+
+    try {
+      final List<CompanyInfo> companies = await CompanyService.instance
+          .fetchCompanies();
+      if (!mounted) return;
+
+      setState(() {
+        _companies = companies;
+        if (_selectedCompany == null && companies.isNotEmpty) {
+          _selectedCompany = companies.first;
+        }
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _companies = <CompanyInfo>[];
+        _selectedCompany = null;
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingCompanies = false;
+      });
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -158,6 +193,7 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     _pincode = '';
     _loadDonorHeader();
     _loadPaymentModes();
+    _loadCompanies();
   }
 
   @override
@@ -230,6 +266,10 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       errors.add('Please enter Notes.');
     }
 
+    if (_companies.isNotEmpty && _selectedCompany == null) {
+      errors.add('Please select Company.');
+    }
+
     if (errors.isNotEmpty) {
       await CommonAlert.showInfo(
         context,
@@ -253,8 +293,8 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
           donorDisplayName: _donorDisplayName,
           month: _selectedMonth,
           year: _selectedYear,
-          companyId: 0,
-          companyName: '',
+          companyId: _selectedCompany?.companyId ?? 0,
+          companyName: _selectedCompany?.companyName ?? '',
           notes: _notesController.text.trim(),
           payments: List<_ReceiptPaymentEntry>.unmodifiable(_payments),
           totalAmount: _totalAmount,
@@ -501,6 +541,47 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
                         _selectedYear = value;
                       });
                     },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<CompanyInfo>(
+                    value: _selectedCompany,
+                    isExpanded: true,
+                    decoration: _fieldDecoration(
+                      label: 'Company',
+                      icon: Icons.apartment_rounded,
+                    ),
+                    dropdownColor: AppColors.surface,
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: AppColors.textGrey,
+                    ),
+                    items: _companies
+                        .map(
+                          (company) => DropdownMenuItem<CompanyInfo>(
+                            value: company,
+                            child: Text(
+                              company.companyName,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                color: AppColors.textDark,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        )
+                        .toList(),
+                    onChanged: _companies.isEmpty
+                        ? null
+                        : (value) {
+                            setState(() {
+                              _selectedCompany = value;
+                            });
+                          },
+                    hint: _isLoadingCompanies
+                        ? const Text('Loading companies...')
+                        : const Text('Select company'),
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -1192,7 +1273,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     final String createdBy = user.userName;
     final String modifiedBy = user.userName;
     final String notes = widget.notes.trim();
-    const String companyName = '';
+    final String companyName = widget.companyName;
     final int regionId = (widget.regionId != null && widget.regionId! > 0)
         ? widget.regionId!
         : (donor.regionId > 0 ? donor.regionId : user.regionId);
@@ -1209,7 +1290,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
       'ReceiptID': receiptId,
       'Amount': totalAmount,
       'Cancel': 0,
-      'CompanyID': 0,
+      'CompanyID': widget.companyId,
       'RegionID': regionId,
       'RepID': user.userId,
       'Notes': notes,

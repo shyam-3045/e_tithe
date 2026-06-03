@@ -30,15 +30,17 @@ class ReceiptHtmlGeneratorService {
                 * { margin: 0; padding: 0; box-sizing: border-box; }
                 body { font-family: Arial, Helvetica, sans-serif; background: #ffffff; padding: 12px; color: #111; }
                 .receipt { max-width: 820px; margin: 0 auto; background: #fff; border: 1.5px solid #000; }
+
+                .header { border-bottom: 1px solid #000; padding: 10px 12px; position: relative; min-height: 100px; }
+                .header-left { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); }
+                .logo { width: 80px; height: 80px; object-fit: contain; }
+                .header-right { position: absolute; right: 12px; top: 50%; transform: translateY(-50%);font-size: 12px; }
+                .org-title { text-align: right; font-weight: 800; font-size: 11px; letter-spacing: 0.3px; }
+                .org-sub { text-align: right; font-size: 10px; font-weight: 600; margin-top: 2px; }
+                .org-line { text-align: right; font-size: 10px; margin-top: 2px; }
+
                 .row { display: flex; justify-content: space-between; align-items: center; }
                 .col { flex: 1; }
-
-                .header { border-bottom: 1px solid #000; padding: 10px 12px; }
-                .logo-wrap { width: 86px; height: 86px; border: 1px solid #000; display: flex; align-items: center; justify-content: center; }
-                .logo { width: 80px; height: 80px; object-fit: contain; }
-                .org-title { text-align: center; font-weight: 800; font-size: 14px; letter-spacing: 0.3px; }
-                .org-sub { text-align: center; font-size: 12px; font-weight: 600; margin-top: 2px; }
-                .org-line { text-align: center; font-size: 12px; margin-top: 2px; }
 
                 .section { border-bottom: 1px solid #000; padding: 8px 12px; }
                 .section-title { text-align: center; font-weight: 700; font-size: 12px; letter-spacing: 0.4px; }
@@ -67,11 +69,11 @@ class ReceiptHtmlGeneratorService {
 
                 @media (max-width: 640px) {
                     body { padding: 6px; }
-                    .row { flex-direction: column; gap: 8px; }
-                    .logo-wrap { width: 72px; height: 72px; }
+                    .header { min-height: 80px; }
                     .logo { width: 66px; height: 66px; }
-                    .org-title { font-size: 12px; }
-                    .org-sub, .org-line, .meta-left, .meta-right, .grid th, .grid td { font-size: 11px; }
+                    .org-title { font-size: 10px; }
+                    .org-sub, .org-line { font-size: 9px; }
+                    .meta-left, .meta-right, .grid th, .grid td { font-size: 11px; }
                     .meta { flex-direction: column; }
                     .meta-right { text-align: left; }
                 }
@@ -85,17 +87,14 @@ class ReceiptHtmlGeneratorService {
 <body>
         <div class="receipt">
             <div class="header">
-                <div class="row">
-                    <div class="logo-wrap">
-                        $logoTag
-                    </div>
-                    <div class="col">
-                        <div class="org-title">SCRIPTURE UNION &amp; CSSM COUNCIL OF INDIA</div>
-                        <div class="org-sub">Society Registration Number : 1/1975</div>
-                        <div class="org-sub">TAMIL NADU SOUTH</div>
-                        <div class="org-line">No.56 C/4 (Upstairs) St. Mary's Street, Perumalpura mTirunelveli-627007</div>
-                    </div>
-                    <div style="width: 86px;"></div>
+                <div class="header-left">
+                    $logoTag
+                </div>
+                <div class="header-right">
+                    <div class="org-title">SCRIPTURE UNION &amp; CSSM COUNCIL OF INDIA</div>
+                    <div class="org-sub">Society Registration Number : 1/1975</div>
+                    <div class="org-sub">TAMIL NADU SOUTH</div>
+                    <div class="org-line">No.56 C/4 (Upstairs) St. Mary&#39;s Street, Perumalpura mTirunelveli-627007</div>
                 </div>
             </div>
 

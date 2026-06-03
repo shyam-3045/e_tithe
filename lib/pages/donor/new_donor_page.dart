@@ -68,6 +68,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
   int? _selectedRegionId;
   String? _selectedState = 'Andaman Nicobar';
 
+  String _selectedIdentityDoc = 'Aadhar';
+  static const List<String> _identityDocOptions = ['Aadhar', 'PAN'];
+
   static const List<String> _titles = ['Mr.', 'Mrs.', 'Ms.', 'Dr.'];
   static const List<String> _genders = ['Male', 'Female', 'Other'];
   static const List<String> _maritalStatuses = ['Married', 'Single', 'Other'];
@@ -248,6 +251,15 @@ class _NewDonorPageState extends State<NewDonorPage> {
           '${pickedDate.day.toString().padLeft(2, '0')}/'
           '${pickedDate.month.toString().padLeft(2, '0')}/'
           '${pickedDate.year}';
+      if (controller == _dependentBirthDateController) {
+        final DateTime today = DateTime.now();
+        int age = today.year - pickedDate.year;
+        if (today.month < pickedDate.month ||
+            (today.month == pickedDate.month && today.day < pickedDate.day)) {
+          age--;
+        }
+        _dependentAgeController.text = age.toString();
+      }
     });
   }
 
@@ -357,9 +369,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
     return <String, dynamic>{
       'donorID': 0,
       'donorName': _donorNameController.text.trim(),
-      'photo': _selectedPhoto?.name ?? '',
-      'panNumber': _panController.text.trim(),
-      'aadhaarNumber': _aadharController.text.trim(),
+      'photo': '',
+      'panNumber': _selectedIdentityDoc == 'PAN' ? _panController.text.trim() : '',
+      'aadhaarNumber': _selectedIdentityDoc == 'Aadhar' ? _aadharController.text.trim() : '',
       'birthDate': _toApiDateString(_parseUiDate(_birthDateController.text)),
       'marriageDate': (_selectedMaritalStatus == 'Married')
           ? _toApiDateString(_parseUiDate(_weddingDateController.text))
@@ -416,10 +428,6 @@ class _NewDonorPageState extends State<NewDonorPage> {
       return;
     }
 
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('Saving donor...')));
-
     if (!_formKey.currentState!.validate()) {
       setState(() {
         _personalExpanded = true;
@@ -431,6 +439,46 @@ class _NewDonorPageState extends State<NewDonorPage> {
       );
       return;
     }
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Save Donor?'),
+          content: const Text('Are you sure you want to save this donor?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.textGrey),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Save',
+                style: TextStyle(
+                  color: AppColors.primaryPurple,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Saving donor...')));
 
     setState(() => _saving = true);
 
@@ -447,6 +495,40 @@ class _NewDonorPageState extends State<NewDonorPage> {
       if (!mounted) return;
 
       if (response.statusCode >= 200 && response.statusCode < 300) {
+        if (_selectedPhotoBytes != null) {
+          try {
+            final Object decoded = jsonDecode(response.body);
+            int newDonorId = 0;
+            if (decoded is Map<String, dynamic>) {
+              newDonorId = int.tryParse(decoded['id']?.toString() ?? '') ?? 0;
+            }
+
+            if (newDonorId > 0) {
+              final String? token = await AuthService.instance.token;
+              final Uri photoUri = ApiConfig.uri('/api/Donor/$newDonorId/photo');
+              final request = http.MultipartRequest('POST', photoUri);
+              if (token != null) {
+                request.headers['Authorization'] = 'Bearer $token';
+              }
+              request.files.add(
+                http.MultipartFile.fromBytes(
+                  'Photo',
+                  _selectedPhotoBytes!,
+                  filename: _selectedPhoto?.name ?? 'photo.jpg',
+                ),
+              );
+
+              print('[API] Uploading photo to $photoUri...');
+              final streamedResponse = await request.send();
+              final photoResponse = await http.Response.fromStream(streamedResponse);
+              print('[API] Photo upload status: ${photoResponse.statusCode}');
+              print('[API] Photo upload body: ${photoResponse.body}');
+            }
+          } catch (e) {
+            print('[API] Error uploading photo: $e');
+          }
+        }
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Donor saved successfully.')),
         );
@@ -638,19 +720,35 @@ class _NewDonorPageState extends State<NewDonorPage> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _aadharController,
-                        label: 'Aadhar No',
+                      _DropdownField<String>(
+                        value: _selectedIdentityDoc,
+                        hintText: 'Identity Document Type',
+                        items: _identityDocOptions,
                         icon: Icons.badge_outlined,
-                        keyboardType: TextInputType.number,
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _selectedIdentityDoc = value;
+                            _aadharController.clear();
+                            _panController.clear();
+                          });
+                        },
                       ),
                       const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _panController,
-                        label: 'PAN',
-                        icon: Icons.credit_card_rounded,
-                        textCapitalization: TextCapitalization.characters,
-                      ),
+                      if (_selectedIdentityDoc == 'Aadhar')
+                        _StyledTextField(
+                          controller: _aadharController,
+                          label: 'Aadhar No',
+                          icon: Icons.badge_outlined,
+                          keyboardType: TextInputType.number,
+                        )
+                      else
+                        _StyledTextField(
+                          controller: _panController,
+                          label: 'PAN',
+                          icon: Icons.credit_card_rounded,
+                          textCapitalization: TextCapitalization.characters,
+                        ),
                     ],
                   ),
                 ),

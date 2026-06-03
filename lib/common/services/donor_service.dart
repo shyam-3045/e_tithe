@@ -10,6 +10,7 @@ class DonorDetails {
   const DonorDetails({
     required this.donorId,
     required this.regionId,
+    required this.areaId,
     required this.name,
     required this.photo,
     required this.title,
@@ -40,6 +41,7 @@ class DonorDetails {
       donorId: _parseInt(json['donorId'] ?? json['donorID'] ?? json['id']),
       regionId: _parseInt(json['regionID'] ?? json['regionId']),
       name: _string(json['donorName'] ?? json['name'] ?? json['fullName']),
+      areaId: _parseInt(json['areaID'] ?? json['areaId']),
       photo: _string(
         json['photo'] ?? json['Photo'] ?? json['photoUrl'] ?? json['photoPath'],
       ),
@@ -75,6 +77,7 @@ class DonorDetails {
 
   final int donorId;
   final int regionId;
+  final int areaId;
   final String name;
   final String photo;
   final String title;
@@ -125,7 +128,19 @@ class DonorDetails {
 }
 
 class DonorDependent {
-  const DonorDependent({required this.name, required this.relation});
+  const DonorDependent({
+    required this.relationId,
+    required this.donorId,
+    required this.name,
+    required this.relation,
+    required this.relationBirthDate,
+    required this.relationAge,
+    required this.deleted,
+    required this.createdOn,
+    required this.createdBy,
+    required this.modifiedOn,
+    required this.modifiedBy,
+  });
 
   factory DonorDependent.fromJson(Map<String, dynamic> json) {
     final String name =
@@ -138,13 +153,55 @@ class DonorDependent {
             .trim();
 
     return DonorDependent(
+      relationId: _parseInt(json['relationID'] ?? json['relationId']),
+      donorId: _parseInt(json['donorID'] ?? json['donorId']),
       name: name.isEmpty ? 'Unknown dependent' : name,
       relation: relation,
+      relationBirthDate: _parseDate(json['relationBirthDate']),
+      relationAge: _string(json['relationAge']),
+      deleted: _parseBool(json['deleted']) ?? false,
+      createdOn: _parseDate(json['createdOn']),
+      createdBy: _string(json['createdBy']),
+      modifiedOn: _parseDate(json['modifiedOn']),
+      modifiedBy: _string(json['modifiedBy']),
     );
   }
 
+  final int relationId;
+  final int donorId;
   final String name;
   final String relation;
+  final DateTime? relationBirthDate;
+  final String relationAge;
+  final bool deleted;
+  final DateTime? createdOn;
+  final String createdBy;
+  final DateTime? modifiedOn;
+  final String modifiedBy;
+
+  static int _parseInt(Object? value) {
+    if (value is int) return value;
+    return int.tryParse((value ?? '').toString()) ?? 0;
+  }
+
+  static String _string(Object? value, {String fallback = ''}) {
+    final String text = (value ?? '').toString().trim();
+    return text.isEmpty ? fallback : text;
+  }
+
+  static DateTime? _parseDate(Object? value) {
+    final String text = (value ?? '').toString().trim();
+    if (text.isEmpty) return null;
+    return DateTime.tryParse(text);
+  }
+
+  static bool? _parseBool(Object? value) {
+    final String text = (value ?? '').toString().trim().toLowerCase();
+    if (text.isEmpty) return null;
+    if (text == 'true' || text == '1' || text == 'yes') return true;
+    if (text == 'false' || text == '0' || text == 'no') return false;
+    return null;
+  }
 }
 
 class DonorService {
@@ -179,5 +236,31 @@ class DonorService {
     }
 
     throw Exception('Unexpected donor detail response.');
+  }
+
+  Future<void> updateDonor({
+    required int donorId,
+    required Map<String, dynamic> payload,
+  }) async {
+    final Uri uri = ApiConfig.uri(ApiEndpoints.donorById(donorId));
+    final Map<String, String> headers = await AuthService.instance
+        .authenticatedJsonHeaders();
+
+    final String body = jsonEncode(payload);
+    print('[API] PUT $uri');
+    print('[API] Request headers: ${jsonEncode(headers)}');
+    print('[API] Request body: $body');
+
+    final http.Response response = await _client.put(
+      uri,
+      headers: headers,
+      body: body,
+    );
+
+    print('[API] Response: ${response.statusCode} ${response.body}');
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to update donor. Status: ${response.statusCode}');
+    }
   }
 }

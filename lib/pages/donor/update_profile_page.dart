@@ -1,8 +1,16 @@
-import 'package:flutter/material.dart';
+import 'dart:typed_data';
 
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:http/http.dart' as http;
+
+import '../../common/constants/api_config.dart';
 import '../../common/constants/app_colors.dart';
 import '../../common/widgets/common_alert.dart';
+import '../../common/services/auth_service.dart';
+import '../../common/services/area_service.dart';
 import '../../common/services/donor_service.dart';
+import '../../common/models/user_data.dart';
 import 'dependent_page.dart';
 
 class UpdateProfilePage extends StatefulWidget {
@@ -17,6 +25,13 @@ class UpdateProfilePage extends StatefulWidget {
 
 class _UpdateProfilePageState extends State<UpdateProfilePage> {
   final _formKey = GlobalKey<FormState>();
+  DonorDetails? _loadedDonor;
+  UserData? _userData;
+  bool _isSaving = false;
+
+  final _imagePicker = ImagePicker();
+  XFile? _selectedPhoto;
+  Uint8List? _selectedPhotoBytes;
 
   // Personal
   final _donorNameController = TextEditingController();
@@ -34,9 +49,22 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
   final _mobileController = TextEditingController();
   final _whatsAppController = TextEditingController();
   final _emailController = TextEditingController();
+  final _photoUrlController = TextEditingController();
+
+  // Dependents
+  final _dependentNameController = TextEditingController();
+  final _dependentRelationshipController = TextEditingController();
+  final _dependentBirthDateController = TextEditingController();
+  final _dependentAgeController = TextEditingController();
+  final List<_DependentDraft> _dependents = <_DependentDraft>[];
+
+  List<AreaOption> _areaOptions = <AreaOption>[];
+  bool _loadingAreas = false;
+  int _selectedAreaId = 0;
 
   bool _personalExpanded = true;
   bool _addressExpanded = false;
+  bool _dependentsExpanded = false;
 
   String _selectedTitle = 'Mr.';
   String _selectedGender = 'Male';
@@ -44,6 +72,9 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
   String _selectedMembership = 'Member';
   String _selectedArea = 'Balangir';
   String _selectedState = 'Odisha';
+
+  String _selectedIdentityDoc = 'Aadhar';
+  static const List<String> _identityDocOptions = ['Aadhar', 'PAN'];
 
   static const List<String> _titles = ['Mr.', 'Mrs.', 'Ms.', 'Dr.'];
   static const List<String> _genders = ['Male', 'Female', 'Other'];
@@ -71,7 +102,66 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
 
     _donorNameController.text = widget.donorName;
 
+    _loadUserData();
     _loadDonorFromApi();
+    _loadAreas();
+  }
+
+  Future<void> _loadUserData() async {
+    final UserData? userData = await AuthService.instance.currentUserData();
+    if (!mounted) return;
+    setState(() {
+      _userData = userData;
+    });
+  }
+
+  Future<void> _loadAreas() async {
+    setState(() {
+      _loadingAreas = true;
+    });
+
+    try {
+      final List<AreaOption> areas = await AreaService.instance.fetchAreas();
+      if (!mounted) return;
+      setState(() {
+        _areaOptions = areas;
+      });
+      _syncAreaSelection();
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _areaOptions = <AreaOption>[];
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _loadingAreas = false;
+      });
+    }
+  }
+
+  void _syncAreaSelection() {
+    final DonorDetails? donor = _loadedDonor;
+    if (donor == null || _areaOptions.isEmpty) return;
+
+    AreaOption? matched;
+    if (donor.areaId > 0) {
+      matched = _areaOptions.cast<AreaOption?>().firstWhere(
+        (a) => a?.areaId == donor.areaId,
+        orElse: () => null,
+      );
+    }
+
+    matched ??= _areaOptions.cast<AreaOption?>().firstWhere(
+      (a) => (a?.areaName ?? '').toLowerCase() == donor.area.toLowerCase(),
+      orElse: () => null,
+    );
+
+    if (matched == null) return;
+    setState(() {
+      _selectedArea = matched!.areaName;
+      _selectedAreaId = matched.areaId;
+    });
   }
 
   Future<void> _loadDonorFromApi() async {
@@ -83,6 +173,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       if (!mounted) return;
 
       setState(() {
+        _loadedDonor = donor;
         _donorNameController.text = donor.name;
         _selectedTitle = donor.title;
         _selectedGender = donor.gender;
@@ -97,10 +188,16 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
         _mobileController.text = donor.mobile;
         _whatsAppController.text = donor.whatsApp;
         _emailController.text = donor.email;
+        _photoUrlController.text = donor.photo;
         _birthDateController.text = donor.birthDate;
         _weddingDateController.text = donor.weddingDate;
         _aadharController.text = donor.aadharNo;
         _panController.text = donor.panNo;
+        if (donor.panNo.trim().isNotEmpty && donor.aadharNo.trim().isEmpty) {
+          _selectedIdentityDoc = 'PAN';
+        } else {
+          _selectedIdentityDoc = 'Aadhar';
+        }
 
         if (_areas.contains(donor.area)) {
           _selectedArea = donor.area;
@@ -108,7 +205,33 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
         if (_states.contains(donor.state)) {
           _selectedState = donor.state;
         }
+
+        if (donor.areaId > 0) {
+          _selectedAreaId = donor.areaId;
+        }
+
+        _dependents
+          ..clear()
+          ..addAll(
+            donor.dependents.map(
+              (d) => _DependentDraft(
+                relationID: 0,
+                donorID: donor.donorId,
+                relationName: d.name,
+                relationshipToDonor: d.relation,
+                relationBirthDate: null,
+                relationAge: '',
+                deleted: false,
+                createdOn: DateTime.now().toUtc(),
+                createdBy: 'mobile-app',
+                modifiedOn: DateTime.now().toUtc(),
+                modifiedBy: 'mobile-app',
+              ),
+            ),
+          );
       });
+
+      _syncAreaSelection();
     } catch (error) {
       if (!mounted) return;
       await CommonAlert.showInfo(
@@ -134,6 +257,11 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     _mobileController.dispose();
     _whatsAppController.dispose();
     _emailController.dispose();
+    _photoUrlController.dispose();
+    _dependentNameController.dispose();
+    _dependentRelationshipController.dispose();
+    _dependentBirthDateController.dispose();
+    _dependentAgeController.dispose();
     super.dispose();
   }
 
@@ -166,39 +294,357 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
           '${pickedDate.day.toString().padLeft(2, '0')}/'
           '${pickedDate.month.toString().padLeft(2, '0')}/'
           '${pickedDate.year}';
+      if (controller == _dependentBirthDateController) {
+        final DateTime today = DateTime.now();
+        int age = today.year - pickedDate.year;
+        if (today.month < pickedDate.month ||
+            (today.month == pickedDate.month && today.day < pickedDate.day)) {
+          age--;
+        }
+        _dependentAgeController.text = age.toString();
+      }
     });
   }
 
-  void _handleUpdate() {
+  DateTime? _parseDateFlexible(String input) {
+    final String text = input.trim();
+    if (text.isEmpty) return null;
+
+    final DateTime? direct = DateTime.tryParse(text);
+    if (direct != null) return direct;
+
+    final parts = text.split('/');
+    if (parts.length != 3) return null;
+    final int? day = int.tryParse(parts[0]);
+    final int? month = int.tryParse(parts[1]);
+    final int? year = int.tryParse(parts[2]);
+    if (day == null || month == null || year == null) return null;
+    return DateTime(year, month, day);
+  }
+
+  String? _toApiDateString(DateTime? date) {
+    if (date == null) return null;
+    final y = date.year.toString().padLeft(4, '0');
+    final m = date.month.toString().padLeft(2, '0');
+    final d = date.day.toString().padLeft(2, '0');
+    return '$y-$m-$d';
+  }
+
+  void _addDependentDraft() {
+    final String name = _dependentNameController.text.trim();
+    final String relationship = _dependentRelationshipController.text.trim();
+
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Dependent name is required.')),
+      );
+      return;
+    }
+
+    final DateTime now = DateTime.now().toUtc();
+    final int donorId = widget.donorId ?? _loadedDonor?.donorId ?? 0;
+
+    setState(() {
+      _dependents.add(
+        _DependentDraft(
+          relationID: 0,
+          donorID: donorId,
+          relationName: name,
+          relationshipToDonor: relationship,
+          relationBirthDate: _parseDateFlexible(
+            _dependentBirthDateController.text,
+          ),
+          relationAge: _dependentAgeController.text.trim(),
+          deleted: false,
+          createdOn: now,
+          createdBy: 'mobile-app',
+          modifiedOn: now,
+          modifiedBy: 'mobile-app',
+        ),
+      );
+
+      _dependentNameController.clear();
+      _dependentRelationshipController.clear();
+      _dependentBirthDateController.clear();
+      _dependentAgeController.clear();
+    });
+  }
+
+  Future<void> _pickPhoto(ImageSource source) async {
+    final XFile? pickedPhoto = await _imagePicker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1600,
+    );
+
+    if (pickedPhoto == null) {
+      return;
+    }
+
+    final Uint8List photoBytes = await pickedPhoto.readAsBytes();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _selectedPhoto = pickedPhoto;
+      _selectedPhotoBytes = photoBytes;
+    });
+  }
+
+  static String? _photoUrl(Object? value) {
+    final String raw = value?.toString().trim() ?? '';
+    if (raw.isEmpty) {
+      return null;
+    }
+
+    final Uri? uri = Uri.tryParse(raw);
+    if (uri != null && uri.hasScheme) {
+      if (uri.host == 'localhost' || uri.host == '127.0.0.1') {
+        final Uri base = Uri.parse(ApiConfig.baseUrl);
+        return uri
+            .replace(scheme: base.scheme, host: base.host, port: base.port)
+            .toString();
+      }
+      return raw;
+    }
+
+    final String normalizedPath = raw.startsWith('/') ? raw : '/$raw';
+    return '${ApiConfig.baseUrl}$normalizedPath';
+  }
+
+
+
+  void _removePhoto() {
+    setState(() {
+      _photoUrlController.clear();
+      _selectedPhoto = null;
+      _selectedPhotoBytes = null;
+    });
+  }
+
+  void _removeDependentAt(int index) {
+    setState(() {
+      _dependents.removeAt(index);
+    });
+  }
+
+  Map<String, dynamic> _buildUpdatePayload() {
+    final DateTime now = DateTime.now().toUtc();
+    final DonorDetails? donor = _loadedDonor;
+    final UserData? user = _userData;
+    final String updatedBy = user?.userName ?? 'mobile-app';
+    final String userTypeLower = (user?.userTypeName ?? '').toLowerCase();
+    final int currentUserId = user?.userID ?? 0;
+    final int areaLeaderId =
+        (userTypeLower.contains('area') && userTypeLower.contains('leader'))
+        ? currentUserId
+        : 0;
+    final int promotionStaffId =
+        (userTypeLower.contains('promo') ||
+            userTypeLower.contains('promotional') ||
+            userTypeLower.contains('promotion'))
+        ? currentUserId
+        : 0;
+
+    final Map<String, _DependentDraft> mergedDependents =
+        <String, _DependentDraft>{};
+
+    void addDependent(_DependentDraft draft) {
+      final String key =
+          '${draft.relationName.toLowerCase()}|${draft.relationshipToDonor.toLowerCase()}';
+      final _DependentDraft? existing = mergedDependents[key];
+      if (existing != null &&
+          existing.relationID != 0 &&
+          draft.relationID == 0) {
+        return;
+      }
+      mergedDependents[key] = draft;
+    }
+
+    for (final DonorDependent d
+        in donor?.dependents ?? const <DonorDependent>[]) {
+      addDependent(
+        _DependentDraft(
+          relationID: d.relationId,
+          donorID: d.donorId,
+          relationName: d.name,
+          relationshipToDonor: d.relation,
+          relationBirthDate: d.relationBirthDate,
+          relationAge: d.relationAge,
+          deleted: d.deleted,
+          createdOn: d.createdOn ?? now,
+          createdBy: d.createdBy.isEmpty ? updatedBy : d.createdBy,
+          modifiedOn: d.modifiedOn ?? now,
+          modifiedBy: d.modifiedBy.isEmpty ? updatedBy : d.modifiedBy,
+        ),
+      );
+    }
+
+    for (final _DependentDraft d in _dependents) {
+      addDependent(d);
+    }
+
+    final List<Map<String, dynamic>> dependentsPayload = mergedDependents.values
+        .map((d) => d.toJson())
+        .toList();
+
+    return <String, dynamic>{
+      'donorID': widget.donorId ?? 0,
+      'donorName': _donorNameController.text.trim(),
+      'panNumber': _selectedIdentityDoc == 'PAN' ? _panController.text.trim() : '',
+      'aadhaarNumber': _selectedIdentityDoc == 'Aadhar' ? _aadharController.text.trim() : '',
+      'birthDate': _toApiDateString(
+        _parseDateFlexible(_birthDateController.text),
+      ),
+      'marriageDate': (_selectedMaritalStatus == 'Married')
+          ? _toApiDateString(_parseDateFlexible(_weddingDateController.text))
+          : null,
+      'gender': _selectedGender.trim(),
+      'maritalStatus': _selectedMaritalStatus.trim(),
+      'regionID': donor?.regionId ?? 0,
+      'areaID': _selectedAreaId,
+      'areaLeaderID': areaLeaderId,
+      'promotionStaffID': promotionStaffId,
+      'mobile': _mobileController.text.trim(),
+      'whatsAppNumber': _whatsAppController.text.trim(),
+      'email': _emailController.text.trim(),
+      'street': _streetController.text.trim(),
+      'village': _flatBuildingController.text.trim(),
+      'city': _cityController.text.trim(),
+      'district': _districtController.text.trim(),
+      'state': _selectedState.trim(),
+      'pincode': _pincodeController.text.trim(),
+      'organization': donor?.organization ?? '',
+      'address': donor?.address ?? '',
+      'userType': user?.userTypeName ?? '',
+      'userID': user?.userID ?? 0,
+      'isActive': true,
+      'deleted': false,
+      'photo': _selectedPhotoBytes != null
+          ? ''
+          : _photoUrlController.text.trim(),
+      'createdOn': now.toIso8601String(),
+      'createdBy': updatedBy,
+      'modifiedOn': now.toIso8601String(),
+      'modifiedBy': updatedBy,
+      'dependents': dependentsPayload,
+    };
+  }
+
+  Future<void> _handleUpdate() async {
     FocusScope.of(context).unfocus();
     if (!_formKey.currentState!.validate()) return;
 
-    // TODO(API): Call update donor API here.
-    // Use controllers/dropdown/radio values to build payload.
-    // await _saveUpdateToApi();
+    final int donorId = widget.donorId ?? 0;
+    if (donorId <= 0) {
+      await CommonAlert.showInfo(
+        context,
+        title: 'Missing donor',
+        message: 'Donor ID is missing. Please refresh and try again.',
+      );
+      return;
+    }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('UI is ready. Hook update API in _handleUpdate().'),
-      ),
-    );
+    if (_isSaving) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Updating... please wait.')));
+      return;
+    }
+
+    setState(() {
+      _isSaving = true;
+    });
+
+    try {
+      final payload = _buildUpdatePayload();
+      print('[UpdateProfilePage] Update donor payload: ${payload.toString()}');
+      await DonorService.instance.updateDonor(
+        donorId: donorId,
+        payload: payload,
+      );
+
+      if (_selectedPhotoBytes != null) {
+        try {
+          final String? token = await AuthService.instance.token;
+          final Uri photoUri = ApiConfig.uri('/api/Donor/$donorId/photo');
+          final request = http.MultipartRequest('POST', photoUri);
+          if (token != null) {
+            request.headers['Authorization'] = 'Bearer $token';
+          }
+          request.files.add(
+            http.MultipartFile.fromBytes(
+              'Photo',
+              _selectedPhotoBytes!,
+              filename: _selectedPhoto?.name ?? 'photo.jpg',
+            ),
+          );
+
+          print('[API] Uploading photo to $photoUri...');
+          final streamedResponse = await request.send();
+          final photoResponse = await http.Response.fromStream(streamedResponse);
+          print('[API] Photo upload status: ${photoResponse.statusCode}');
+          print('[API] Photo upload body: ${photoResponse.body}');
+        } catch (e) {
+          print('[API] Error uploading photo: $e');
+        }
+      }
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Donor updated successfully.')),
+      );
+    } catch (error) {
+      if (!mounted) return;
+
+      await CommonAlert.showInfo(
+        context,
+        title: 'Update failed',
+        message: error.toString(),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isSaving = false;
+      });
+    }
   }
 
   void _handlePhoto() {
-    // TODO(API): Implement photo capture/upload flow.
-    CommonAlert.showInfo(
-      context,
-      title: 'Photo',
-      message: 'Photo flow can be connected here.',
-    );
-  }
-
-  void _handleFind() {
-    // TODO(API): Implement donor search/find workflow.
-    CommonAlert.showInfo(
-      context,
-      title: 'Find',
-      message: 'Find flow can be connected here.',
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (context) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                leading: const Icon(Icons.photo_camera_rounded),
+                title: const Text('Take photo'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickPhoto(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_rounded),
+                title: const Text('Choose from gallery'),
+                onTap: () {
+                  Navigator.of(context).pop();
+                  _pickPhoto(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -233,7 +679,6 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       bottomNavigationBar: _BottomActionBar(
         onUpdate: _handleUpdate,
         onPhoto: _handlePhoto,
-        onFind: _handleFind,
         onDependent: _openDependent,
         onBack: () => Navigator.of(context).maybePop(),
       ),
@@ -310,6 +755,108 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                         },
                       ),
                       const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AppColors.borderGrey),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Photo',
+                              style: TextStyle(
+                                color: AppColors.textGrey,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Container(
+                                  width: 68,
+                                  height: 68,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.lavender,
+                                    borderRadius: BorderRadius.circular(14),
+                                    border: Border.all(
+                                      color: AppColors.borderGrey,
+                                    ),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(14),
+                                    child: _selectedPhotoBytes != null
+                                        ? Image.memory(
+                                            _selectedPhotoBytes!,
+                                            fit: BoxFit.cover,
+                                          )
+                                        : _photoUrlController.text.trim().isEmpty
+                                            ? const Icon(
+                                                Icons.person_rounded,
+                                                color: AppColors.iconPurple,
+                                                size: 32,
+                                              )
+                                            : Image.network(
+                                                _photoUrl(_photoUrlController.text.trim()) ?? '',
+                                                fit: BoxFit.cover,
+                                                errorBuilder: (context, _, __) {
+                                                  return const Icon(
+                                                    Icons.broken_image_outlined,
+                                                    color: AppColors.textGrey,
+                                                  );
+                                                },
+                                              ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    _selectedPhotoBytes != null
+                                        ? (_selectedPhoto?.name ?? 'New image selected')
+                                        : _photoUrlController.text.trim().isEmpty
+                                            ? 'No photo selected'
+                                            : _photoUrlController.text.trim(),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: AppColors.textGrey,
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                OutlinedButton.icon(
+                                  onPressed: _handlePhoto,
+                                  icon: const Icon(Icons.add_a_photo_outlined),
+                                  label: const Text('Add Photo'),
+                                ),
+                                const SizedBox(width: 10),
+                                OutlinedButton.icon(
+                                  onPressed:
+                                      (_photoUrlController.text.trim().isEmpty &&
+                                              _selectedPhotoBytes == null)
+                                          ? null
+                                          : _removePhoto,
+                                  icon: const Icon(
+                                    Icons.delete_outline_rounded,
+                                  ),
+                                  label: const Text('Remove'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
                       _OutlinedTextField(
                         controller: _birthDateController,
                         label: 'Birth Date',
@@ -353,19 +900,34 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                         },
                       ),
                       const SizedBox(height: 14),
-                      _OutlinedTextField(
-                        controller: _aadharController,
-                        label: 'Aadhar No',
-                        icon: Icons.credit_card_rounded,
-                        keyboardType: TextInputType.number,
+                      _DropdownField(
+                        value: _selectedIdentityDoc,
+                        label: 'Identity Document Type',
+                        items: _identityDocOptions,
+                        onChanged: (value) {
+                          if (value == null) return;
+                          setState(() {
+                            _selectedIdentityDoc = value;
+                            _aadharController.clear();
+                            _panController.clear();
+                          });
+                        },
                       ),
                       const SizedBox(height: 14),
-                      _OutlinedTextField(
-                        controller: _panController,
-                        label: 'PAN',
-                        icon: Icons.badge_outlined,
-                        textCapitalization: TextCapitalization.characters,
-                      ),
+                      if (_selectedIdentityDoc == 'Aadhar')
+                        _OutlinedTextField(
+                          controller: _aadharController,
+                          label: 'Aadhar No',
+                          icon: Icons.credit_card_rounded,
+                          keyboardType: TextInputType.number,
+                        )
+                      else
+                        _OutlinedTextField(
+                          controller: _panController,
+                          label: 'PAN',
+                          icon: Icons.badge_outlined,
+                          textCapitalization: TextCapitalization.characters,
+                        ),
                     ],
                   ),
                 ),
@@ -471,6 +1033,82 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                           return isValid ? null : 'Enter a valid email';
                         },
                       ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 14),
+                _SectionPanel(
+                  title: 'Dependent Details',
+                  isExpanded: _dependentsExpanded,
+                  onToggle: () {
+                    setState(() {
+                      _dependentsExpanded = !_dependentsExpanded;
+                    });
+                  },
+                  child: Column(
+                    children: [
+                      _OutlinedTextField(
+                        controller: _dependentNameController,
+                        label: 'Dependent Name',
+                        icon: Icons.person_outline_rounded,
+                      ),
+                      const SizedBox(height: 14),
+                      _OutlinedTextField(
+                        controller: _dependentRelationshipController,
+                        label: 'Relationship To Donor',
+                        icon: Icons.family_restroom_outlined,
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _OutlinedTextField(
+                              controller: _dependentBirthDateController,
+                              label: 'Birth Date',
+                              icon: Icons.cake_outlined,
+                              readOnly: true,
+                              onTap: () =>
+                                  _pickDate(_dependentBirthDateController),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _OutlinedTextField(
+                              controller: _dependentAgeController,
+                              label: 'Age',
+                              icon: Icons.numbers_rounded,
+                              keyboardType: TextInputType.number,
+                              textCapitalization: TextCapitalization.none,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: ElevatedButton.icon(
+                          onPressed: _addDependentDraft,
+                          icon: const Icon(Icons.add_rounded),
+                          label: const Text('Add Dependent'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.statusBarPink,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                          ),
+                        ),
+                      ),
+                      if (_dependents.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        ...List.generate(
+                          _dependents.length,
+                          (index) => _DependentTile(
+                            dependent: _dependents[index],
+                            onRemove: () => _removeDependentAt(index),
+                          ),
+                        ),
+                      ],
                     ],
                   ),
                 ),
@@ -634,6 +1272,107 @@ class _OutlinedTextField extends StatelessWidget {
   }
 }
 
+class _DependentDraft {
+  const _DependentDraft({
+    required this.relationID,
+    required this.donorID,
+    required this.relationName,
+    required this.relationshipToDonor,
+    required this.relationBirthDate,
+    required this.relationAge,
+    required this.deleted,
+    required this.createdOn,
+    required this.createdBy,
+    required this.modifiedOn,
+    required this.modifiedBy,
+  });
+
+  final int relationID;
+  final int donorID;
+  final String relationName;
+  final DateTime? relationBirthDate;
+  final String relationAge;
+  final String relationshipToDonor;
+  final bool deleted;
+  final DateTime createdOn;
+  final String createdBy;
+  final DateTime modifiedOn;
+  final String modifiedBy;
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'relationID': relationID,
+      'donorID': donorID,
+      'relationName': relationName,
+      'relationBirthDate': relationBirthDate?.toUtc().toIso8601String(),
+      'relationAge': relationAge,
+      'relationshipToDonor': relationshipToDonor,
+      'deleted': deleted,
+      'createdOn': createdOn.toUtc().toIso8601String(),
+      'createdBy': createdBy,
+      'modifiedOn': modifiedOn.toUtc().toIso8601String(),
+      'modifiedBy': modifiedBy,
+    };
+  }
+}
+
+class _DependentTile extends StatelessWidget {
+  const _DependentTile({required this.dependent, required this.onRemove});
+
+  final _DependentDraft dependent;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.borderGrey),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.person_rounded, color: AppColors.iconPurple),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dependent.relationName,
+                  style: const TextStyle(
+                    color: AppColors.textDark,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                if (dependent.relationshipToDonor.trim().isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      dependent.relationshipToDonor,
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          IconButton(
+            tooltip: 'Remove',
+            onPressed: onRemove,
+            icon: const Icon(Icons.close_rounded, color: AppColors.textGrey),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _DropdownField extends StatelessWidget {
   const _DropdownField({
     required this.value,
@@ -747,14 +1486,12 @@ class _BottomActionBar extends StatelessWidget {
   const _BottomActionBar({
     required this.onUpdate,
     required this.onPhoto,
-    required this.onFind,
     required this.onDependent,
     required this.onBack,
   });
 
   final VoidCallback onUpdate;
   final VoidCallback onPhoto;
-  final VoidCallback onFind;
   final VoidCallback onDependent;
   final VoidCallback onBack;
 
@@ -789,11 +1526,6 @@ class _BottomActionBar extends StatelessWidget {
               label: 'Photo',
               icon: Icons.photo_camera_outlined,
               onTap: onPhoto,
-            ),
-            _BottomAction(
-              label: 'Find',
-              icon: Icons.location_on_outlined,
-              onTap: onFind,
             ),
             _BottomAction(
               label: 'Dependent',

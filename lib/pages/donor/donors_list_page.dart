@@ -247,10 +247,17 @@ class _DonorListItem {
     String? photoBase64;
 
     if (photoString.isNotEmpty) {
-      if (_isBase64(photoString)) {
-        photoBase64 = photoString;
-      } else {
+      final String lower = photoString.toLowerCase();
+      final bool isUrlOrPath = lower.startsWith('http') ||
+          lower.startsWith('/') ||
+          lower.contains('/uploads/') ||
+          lower.endsWith('.jpg') ||
+          lower.endsWith('.jpeg') ||
+          lower.endsWith('.png');
+      if (isUrlOrPath) {
         avatarUrl = _photoUrl(photoString);
+      } else {
+        photoBase64 = photoString;
       }
     }
 
@@ -353,25 +360,6 @@ class _DonorListItem {
         .toList();
   }
 
-  static bool _isBase64(String value) {
-    final String trimmed = value.trim();
-    if (trimmed.isEmpty) {
-      return false;
-    }
-    if (trimmed.startsWith('data:image')) {
-      return true;
-    }
-    if (trimmed.length < 50) {
-      return false;
-    }
-    try {
-      base64Decode(trimmed);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
   static String? _photoUrl(Object? value) {
     final String raw = value?.toString().trim() ?? '';
     if (raw.isEmpty) {
@@ -380,6 +368,12 @@ class _DonorListItem {
 
     final Uri? uri = Uri.tryParse(raw);
     if (uri != null && uri.hasScheme) {
+      if (uri.host == 'localhost' || uri.host == '127.0.0.1') {
+        final Uri base = Uri.parse(ApiConfig.baseUrl);
+        return uri
+            .replace(scheme: base.scheme, host: base.host, port: base.port)
+            .toString();
+      }
       return raw;
     }
 

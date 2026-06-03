@@ -5,6 +5,7 @@ import '../../common/models/user_data.dart';
 import '../../common/services/auth_service.dart';
 import '../../common/services/company_service.dart';
 import '../../common/services/donor_service.dart';
+import '../../common/services/fund_service.dart';
 import '../../common/services/payment_mode_service.dart';
 import '../../common/services/receipt_service.dart';
 import '../../common/services/user_service.dart';
@@ -35,6 +36,9 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
   List<PaymentModeInfo> _paymentModes = <PaymentModeInfo>[];
   bool _isLoadingPaymentModes = false;
 
+  List<FundInfo> _funds = <FundInfo>[];
+  bool _isLoadingFunds = false;
+
   List<CompanyInfo> _companies = <CompanyInfo>[];
   CompanyInfo? _selectedCompany;
   bool _isLoadingCompanies = false;
@@ -56,38 +60,6 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     'OCTOBER',
     'NOVEMBER',
     'DECEMBER',
-  ];
-
-  static const List<String> _fundTypes = <String>[
-    'General Donation',
-    'Tithe',
-    'Mission',
-    'VBS/Camps/Retreats/Rally/Seminars',
-    'Building Fund',
-    'Vehicle Fund',
-    'Devotional Book Promotion',
-    'Offering',
-    'Equipment Fund',
-    'Educational Fund',
-    'Christmas Gift Fund',
-    'North India Support',
-    'Staff Welfare Fund',
-    'Staff Support from LU',
-    'Travel Refund',
-    'From Departments',
-    'From States',
-    'VBS Support from LU',
-    'Vehicle Fund from LU',
-    'Spl.Contribution from LU',
-    'Promise Card from LU',
-    'NID Support from LU',
-    'Educational Fund from LU',
-    'Christmas Gift From LU',
-    'Building Fund from LU',
-    'Staff Support From Donor',
-    'Staff Donation',
-    'From Head Quarters',
-    'Subscription',
   ];
 
   String _currentMonthLabel() {
@@ -151,6 +123,31 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     }
   }
 
+  Future<void> _loadFunds() async {
+    setState(() {
+      _isLoadingFunds = true;
+    });
+
+    try {
+      final List<FundInfo> funds = await FundService.instance.fetchFunds();
+      if (!mounted) return;
+
+      setState(() {
+        _funds = funds;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _funds = <FundInfo>[];
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingFunds = false;
+      });
+    }
+  }
+
   Future<void> _loadCompanies() async {
     setState(() {
       _isLoadingCompanies = true;
@@ -193,6 +190,7 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     _pincode = '';
     _loadDonorHeader();
     _loadPaymentModes();
+    _loadFunds();
     _loadCompanies();
   }
 
@@ -206,9 +204,13 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       _payments.fold<double>(0, (sum, item) => sum + item.amount);
 
   Future<void> _openAddPayDialog() async {
-    final Set<String> takenFunds = _payments.map((e) => e.fundType).toSet();
-    final List<String> availableFunds = _fundTypes
-        .where((f) => !takenFunds.contains(f))
+    if (_funds.isEmpty && !_isLoadingFunds) {
+      await _loadFunds();
+    }
+
+    final Set<int> takenFundIds = _payments.map((e) => e.fundId).toSet();
+    final List<FundInfo> availableFunds = _funds
+        .where((f) => !takenFundIds.contains(f.fundId))
         .toList();
 
     if (availableFunds.isEmpty) {
@@ -238,8 +240,8 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
           context: context,
           barrierDismissible: false,
           builder: (context) => _AmountDetailDialog(
-            fundTypes: _fundTypes,
-            takenFundTypes: takenFunds,
+            funds: _funds,
+            takenFundIds: takenFundIds,
             paymentModes: _paymentModes,
           ),
         );
@@ -667,12 +669,14 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
 
 class _ReceiptPaymentEntry {
   const _ReceiptPaymentEntry({
-    required this.fundType,
+    required this.fundId,
+    required this.fundName,
     required this.amount,
     required this.mode,
   });
 
-  final String fundType;
+  final int fundId;
+  final String fundName;
   final double amount;
   final PaymentModeInfo mode;
 }
@@ -787,7 +791,7 @@ class _PaymentRowCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  item.fundType,
+                  item.fundName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
@@ -925,13 +929,13 @@ class _BottomAction extends StatelessWidget {
 
 class _AmountDetailDialog extends StatefulWidget {
   const _AmountDetailDialog({
-    required this.fundTypes,
-    required this.takenFundTypes,
+    required this.funds,
+    required this.takenFundIds,
     required this.paymentModes,
   });
 
-  final List<String> fundTypes;
-  final Set<String> takenFundTypes;
+  final List<FundInfo> funds;
+  final Set<int> takenFundIds;
   final List<PaymentModeInfo> paymentModes;
 
   @override
@@ -941,7 +945,7 @@ class _AmountDetailDialog extends StatefulWidget {
 class _AmountDetailDialogState extends State<_AmountDetailDialog> {
   final _formKey = GlobalKey<FormState>();
 
-  late String _selectedFundType;
+  late FundInfo _selectedFund;
   final _amountController = TextEditingController();
   PaymentModeInfo? _selectedMode;
 
@@ -949,13 +953,20 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
   void initState() {
     super.initState();
 
-    final List<String> available = widget.fundTypes
-        .where((fund) => !widget.takenFundTypes.contains(fund))
+    final List<FundInfo> available = widget.funds
+        .where((fund) => !widget.takenFundIds.contains(fund.fundId))
         .toList();
 
-    _selectedFundType = available.contains('General Donation')
-        ? 'General Donation'
-        : (available.isNotEmpty ? available.first : 'General Donation');
+    final FundInfo? preferred = available.cast<FundInfo?>().firstWhere(
+      (fund) => (fund?.fundName ?? '').toLowerCase() == 'general donation',
+      orElse: () => null,
+    );
+
+    _selectedFund =
+        preferred ??
+        (available.isNotEmpty
+            ? available.first
+            : const FundInfo(fundId: 0, fundName: 'General Donation'));
 
     if (widget.paymentModes.isNotEmpty) {
       _selectedMode = widget.paymentModes.first;
@@ -984,7 +995,7 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
       return;
     }
 
-    if (widget.takenFundTypes.contains(_selectedFundType)) {
+    if (widget.takenFundIds.contains(_selectedFund.fundId)) {
       await CommonAlert.showInfo(
         context,
         title: 'Duplicate fund',
@@ -1008,7 +1019,8 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
 
     Navigator.of(context).pop(
       _ReceiptPaymentEntry(
-        fundType: _selectedFundType,
+        fundId: _selectedFund.fundId,
+        fundName: _selectedFund.fundName,
         amount: amount,
         mode: _selectedMode!,
       ),
@@ -1037,8 +1049,8 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
                 ),
               ),
               const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                value: _selectedFundType,
+              DropdownButtonFormField<FundInfo>(
+                value: _selectedFund,
                 isExpanded: true,
                 decoration: _fieldDecoration(
                   label: '',
@@ -1050,12 +1062,12 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
                   color: AppColors.textGrey,
                 ),
                 selectedItemBuilder: (context) {
-                  return widget.fundTypes
+                  return widget.funds
                       .map(
                         (fund) => Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
-                            fund,
+                            fund.fundName,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(
@@ -1068,13 +1080,15 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
                       )
                       .toList();
                 },
-                items: widget.fundTypes.map((fund) {
-                  final bool isTaken = widget.takenFundTypes.contains(fund);
-                  return DropdownMenuItem<String>(
+                items: widget.funds.map((fund) {
+                  final bool isTaken = widget.takenFundIds.contains(
+                    fund.fundId,
+                  );
+                  return DropdownMenuItem<FundInfo>(
                     value: fund,
                     enabled: !isTaken,
                     child: Text(
-                      fund,
+                      fund.fundName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -1090,7 +1104,7 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
                 onChanged: (value) {
                   if (value == null) return;
                   setState(() {
-                    _selectedFundType = value;
+                    _selectedFund = value;
                   });
                 },
               ),
@@ -1286,6 +1300,25 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     final String repName = user.userName;
     const int receiptId = 0;
 
+    final List<Map<String, dynamic>> receiptLines = widget.payments.map((item) {
+      return <String, dynamic>{
+        'ReceiptLineID': 0,
+        'ReceiptID': receiptId,
+        'Amount': item.amount.round(),
+        'BankName': 'N/A',
+        'ChequeDate': utcNow,
+        'ChequeNo': 'N/A',
+        'FundID': item.fundId,
+        'FundName': item.fundName,
+        'PaymentMode': item.mode.name,
+        'Deleted': false,
+        'CreatedOn': utcNow,
+        'CreatedBy': createdBy,
+        'ModifiedOn': utcNow,
+        'ModifiedBy': modifiedBy,
+      };
+    }).toList();
+
     return <String, dynamic>{
       'ReceiptID': receiptId,
       'Amount': totalAmount,
@@ -1310,29 +1343,48 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
       'RepType': repType,
       'RepName': repName,
       'DonorName': donor.name,
-      'ReceiptLines': widget.payments.map((item) {
-        return <String, dynamic>{
-          'ReceiptLineID': 0,
-          'ReceiptID': receiptId,
-          'Amount': item.amount.round(),
-          'BankName': 'N/A',
-          'ChequeDate': utcNow,
-          'ChequeNo': 'N/A',
-          'FundID': 0,
-          'FundName': item.fundType,
-          'PaymentMode': item.mode.name,
-          'Deleted': false,
-          'CreatedOn': utcNow,
-          'CreatedBy': createdBy,
-          'ModifiedOn': utcNow,
-          'ModifiedBy': modifiedBy,
-        };
-      }).toList(),
+      'ReceiptLines': receiptLines,
     };
   }
 
   Future<void> _handleSubmit() async {
     if (_isSubmitting) return;
+
+    final bool? confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Submit Receipt?'),
+          content: const Text('Are you sure you want to submit this receipt?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.textGrey),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Submit',
+                style: TextStyle(
+                  color: AppColors.primaryPurple,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirm != true) {
+      return;
+    }
 
     setState(() {
       _isSubmitting = true;
@@ -1433,7 +1485,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
                           children: [
                             Expanded(
                               child: Text(
-                                p.fundType,
+                                p.fundName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(

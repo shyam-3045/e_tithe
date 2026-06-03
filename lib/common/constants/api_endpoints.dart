@@ -10,4 +10,6 @@ class ApiEndpoints {
   static const String receiptGenerateNo = '/api/Receipt/GenerateReceiptNo';
   static const String company = '/api/Company';
   static const String paymentMode = '/api/PaymentMode';
+  static const String fund = '/api/Fund';
+  static const String area = '/api/Area';
 }

@@ -42,7 +42,7 @@ class _SplashPageState extends State<SplashPage> {
   Widget build(BuildContext context) {
     return const Scaffold(
       body: Center(
-        child: AppLogo(size: 250),
+        child: AppLogo(size: 250, showBorder: false),
       ),
     );
   }

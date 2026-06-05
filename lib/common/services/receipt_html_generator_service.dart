@@ -1,4 +1,5 @@
 import 'receipt_export_service.dart';
+import 'receipt_service.dart';
 
 class ReceiptHtmlGeneratorService {
   ReceiptHtmlGeneratorService._();
@@ -19,6 +20,30 @@ class ReceiptHtmlGeneratorService {
     final String amountText = data.amount.trim().isEmpty
         ? ''
         : data.amount.trim();
+
+    final List<ReceiptFundDetail> details = data.fundDetails.isNotEmpty
+        ? data.fundDetails
+        : [
+            ReceiptFundDetail(
+              companyId: 0,
+              companyName: '',
+              regionName: '',
+              companyAddress: '',
+              email: '',
+              mobile: '',
+              fundName: data.fundType,
+              amount: double.tryParse(data.amount.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0,
+            )
+          ];
+
+    final String tableRows = details.map((detail) {
+      final String detailAmount = 'INR ${detail.amount.toStringAsFixed(2)}';
+      return '''
+                    <tr>
+                        <td>${_escapeHtml(detail.fundName)}</td>
+                        <td>${_escapeHtml(detailAmount)}</td>
+                    </tr>''';
+    }).join('\n');
 
     return '''<!DOCTYPE html>
 <html>
@@ -123,10 +148,7 @@ class ReceiptHtmlGeneratorService {
                     </tr>
                 </thead>
                 <tbody>
-                    <tr>
-                        <td>${_escapeHtml(data.fundType)}</td>
-                        <td>${_escapeHtml(amountText)}</td>
-                    </tr>
+                    $tableRows
                     <tr class="total">
                         <td style="text-align:right;">Total</td>
                         <td>${_escapeHtml(amountText)}</td>

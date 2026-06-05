@@ -1235,7 +1235,6 @@ class _ReceiptSignaturePage extends StatefulWidget {
 }
 
 class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
-  final _SignatureController _signatureController = _SignatureController();
   bool _isSubmitting = false;
 
   String _dateOnly(DateTime dateTime) {
@@ -1417,36 +1416,19 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     }
   }
 
-  void _handleClearSignature() {
-    _signatureController.clear();
-  }
-
   void _handleBack() {
     Navigator.of(context).maybePop();
-  }
-
-  @override
-  void dispose() {
-    _signatureController.dispose();
-    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.softPurple,
-      appBar: AppBar(title: const Text('Signature & Submit')),
-      bottomNavigationBar: AnimatedBuilder(
-        animation: _signatureController,
-        builder: (context, _) {
-          return _SignatureBottomBar(
-            canSubmit: true,
-            isSubmitting: _isSubmitting,
-            onClear: _handleClearSignature,
-            onBack: _handleBack,
-            onSubmit: _handleSubmit,
-          );
-        },
+      appBar: AppBar(title: const Text('Confirm & Submit')),
+      bottomNavigationBar: _ConfirmBottomBar(
+        isSubmitting: _isSubmitting,
+        onBack: _handleBack,
+        onSubmit: _handleSubmit,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -1519,33 +1501,6 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
-              const Text(
-                'Donor Signature',
-                style: TextStyle(
-                  color: AppColors.textDark,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w800,
-                ),
-              ),
-              const SizedBox(height: 10),
-              AnimatedBuilder(
-                animation: _signatureController,
-                builder: (context, _) {
-                  return _SignaturePad(
-                    controller: _signatureController,
-                    height: 220,
-                  );
-                },
-              ),
-              const SizedBox(height: 8),
-              const Text(
-                'Please ask the donor to sign inside the box.',
-                style: TextStyle(
-                  color: AppColors.textGrey,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
             ],
           ),
         ),
@@ -1554,18 +1509,14 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
   }
 }
 
-class _SignatureBottomBar extends StatelessWidget {
-  const _SignatureBottomBar({
-    required this.canSubmit,
+class _ConfirmBottomBar extends StatelessWidget {
+  const _ConfirmBottomBar({
     required this.isSubmitting,
-    required this.onClear,
     required this.onBack,
     required this.onSubmit,
   });
 
-  final bool canSubmit;
   final bool isSubmitting;
-  final VoidCallback onClear;
   final VoidCallback onBack;
   final VoidCallback onSubmit;
 
@@ -1591,21 +1542,16 @@ class _SignatureBottomBar extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceEvenly,
           children: [
-            _SignatureAction(
-              label: 'Clear',
-              icon: Icons.delete_outline_rounded,
-              onTap: onClear,
-            ),
-            _SignatureAction(
+            _ConfirmAction(
               label: 'Back',
               icon: Icons.arrow_back_ios_new_rounded,
               onTap: onBack,
             ),
             Opacity(
-              opacity: canSubmit && !isSubmitting ? 1 : 0.55,
+              opacity: !isSubmitting ? 1 : 0.55,
               child: IgnorePointer(
-                ignoring: !canSubmit || isSubmitting,
-                child: _SignatureAction(
+                ignoring: isSubmitting,
+                child: _ConfirmAction(
                   label: isSubmitting ? 'Saving...' : 'Submit',
                   icon: isSubmitting
                       ? Icons.hourglass_top_rounded
@@ -1621,8 +1567,8 @@ class _SignatureBottomBar extends StatelessWidget {
   }
 }
 
-class _SignatureAction extends StatelessWidget {
-  const _SignatureAction({
+class _ConfirmAction extends StatelessWidget {
+  const _ConfirmAction({
     required this.label,
     required this.icon,
     required this.onTap,
@@ -1638,7 +1584,7 @@ class _SignatureAction extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(14),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1648,7 +1594,7 @@ class _SignatureAction extends StatelessWidget {
               label,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: FontWeight.w700,
               ),
             ),
@@ -1656,116 +1602,6 @@ class _SignatureAction extends StatelessWidget {
         ),
       ),
     );
-  }
-}
-
-class _SignatureController extends ChangeNotifier {
-  final List<Offset?> _points = <Offset?>[];
-
-  List<Offset?> get points => List<Offset?>.unmodifiable(_points);
-
-  bool get hasSignature => _points.any((p) => p != null);
-
-  void addPoint(Offset point) {
-    _points.add(point);
-    notifyListeners();
-  }
-
-  void endStroke() {
-    _points.add(null);
-    notifyListeners();
-  }
-
-  void clear() {
-    _points.clear();
-    notifyListeners();
-  }
-}
-
-class _SignaturePad extends StatefulWidget {
-  const _SignaturePad({required this.controller, required this.height});
-
-  final _SignatureController controller;
-  final double height;
-
-  @override
-  State<_SignaturePad> createState() => _SignaturePadState();
-}
-
-class _SignaturePadState extends State<_SignaturePad> {
-  void _add(Offset globalPosition) {
-    final RenderBox? box = context.findRenderObject() as RenderBox?;
-    if (box == null) return;
-    final Offset local = box.globalToLocal(globalPosition);
-    if (local.dx < 0 || local.dy < 0) return;
-    if (local.dx > box.size.width || local.dy > box.size.height) return;
-    widget.controller.addPoint(local);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: widget.height,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderGrey, width: 1.4),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: Stack(
-          children: [
-            if (!widget.controller.hasSignature)
-              Center(
-                child: Text(
-                  'Sign here',
-                  style: TextStyle(
-                    color: AppColors.textGrey.withOpacity(0.5),
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-            GestureDetector(
-              onPanStart: (d) => _add(d.globalPosition),
-              onPanUpdate: (d) => _add(d.globalPosition),
-              onPanEnd: (_) => widget.controller.endStroke(),
-              child: CustomPaint(
-                painter: _SignaturePainter(widget.controller.points),
-                size: Size.infinite,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SignaturePainter extends CustomPainter {
-  const _SignaturePainter(this.points);
-
-  final List<Offset?> points;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final Paint paint = Paint()
-      ..color = AppColors.textDark
-      ..strokeWidth = 3.0
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    for (int i = 0; i < points.length - 1; i++) {
-      final Offset? p1 = points[i];
-      final Offset? p2 = points[i + 1];
-      if (p1 != null && p2 != null) {
-        canvas.drawLine(p1, p2, paint);
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _SignaturePainter oldDelegate) {
-    return oldDelegate.points != points;
   }
 }
 

@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -15,6 +14,7 @@ import '../../common/constants/app_colors.dart';
 import '../../common/services/receipt_export_service.dart';
 import '../../common/services/receipt_html_generator_service.dart';
 import '../../common/widgets/common_alert.dart';
+import '../../common/services/receipt_service.dart';
 
 class ReceiptPdfWebViewPage extends StatefulWidget {
   const ReceiptPdfWebViewPage({super.key, required this.receiptData});
@@ -116,6 +116,101 @@ class _ReceiptPdfWebViewPageState extends State<ReceiptPdfWebViewPage> {
         : (amountValue.toLowerCase().startsWith('rs')
               ? amountValue
               : 'Rs $amountValue');
+
+    final List<ReceiptFundDetail> pdfDetails = data.fundDetails.isNotEmpty
+        ? data.fundDetails
+        : [
+            ReceiptFundDetail(
+              companyId: 0,
+              companyName: '',
+              regionName: '',
+              companyAddress: '',
+              email: '',
+              mobile: '',
+              fundName: data.fundType,
+              amount: double.tryParse(data.amount.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0,
+            )
+          ];
+
+    final List<pw.TableRow> tableRows = [
+      pw.TableRow(
+        decoration: const pw.BoxDecoration(
+          color: PdfColors.white,
+        ),
+        children: [
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 6),
+            child: pw.Text(
+              'Particulars',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(
+                fontSize: 9.5,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(vertical: 6),
+            child: pw.Text(
+              'Amount',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(
+                fontSize: 9.5,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+      ...pdfDetails.map((detail) {
+        final String detailAmountText = 'Rs ${detail.amount.toStringAsFixed(2)}';
+        return pw.TableRow(
+          children: [
+            pw.Padding(
+              padding: const pw.EdgeInsets.all(6),
+              child: pw.Text(
+                detail.fundName,
+                style: const pw.TextStyle(fontSize: 9.5),
+              ),
+            ),
+            pw.Padding(
+              padding: const pw.EdgeInsets.all(6),
+              child: pw.Text(
+                detailAmountText,
+                textAlign: pw.TextAlign.right,
+                style: const pw.TextStyle(fontSize: 9.5),
+              ),
+            ),
+          ],
+        );
+      }),
+      pw.TableRow(
+        children: [
+          pw.Padding(
+            padding: const pw.EdgeInsets.all(6),
+            child: pw.Text(
+              'Total',
+              textAlign: pw.TextAlign.right,
+              style: pw.TextStyle(
+                fontSize: 9.5,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+          pw.Padding(
+            padding: const pw.EdgeInsets.all(6),
+            child: pw.Text(
+              amountText,
+              textAlign: pw.TextAlign.right,
+              style: pw.TextStyle(
+                fontSize: 9.5,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ];
 
     doc.addPage(
       pw.Page(
@@ -279,82 +374,7 @@ class _ReceiptPdfWebViewPageState extends State<ReceiptPdfWebViewPage> {
                     0: pw.FlexColumnWidth(3.2),
                     1: pw.FlexColumnWidth(1.4),
                   },
-                  children: [
-                    pw.TableRow(
-                      decoration: const pw.BoxDecoration(
-                        color: PdfColors.white,
-                      ),
-                      children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.symmetric(vertical: 6),
-                          child: pw.Text(
-                            'Particulars',
-                            textAlign: pw.TextAlign.center,
-                            style: pw.TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: pw.FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.symmetric(vertical: 6),
-                          child: pw.Text(
-                            'Amount',
-                            textAlign: pw.TextAlign.center,
-                            style: pw.TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: pw.FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    pw.TableRow(
-                      children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text(
-                            data.fundType,
-                            style: const pw.TextStyle(fontSize: 9.5),
-                          ),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text(
-                            amountText,
-                            textAlign: pw.TextAlign.right,
-                            style: const pw.TextStyle(fontSize: 9.5),
-                          ),
-                        ),
-                      ],
-                    ),
-                    pw.TableRow(
-                      children: [
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text(
-                            'Total',
-                            textAlign: pw.TextAlign.right,
-                            style: pw.TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: pw.FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                        pw.Padding(
-                          padding: const pw.EdgeInsets.all(6),
-                          child: pw.Text(
-                            amountText,
-                            textAlign: pw.TextAlign.right,
-                            style: pw.TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: pw.FontWeight.bold,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
+                  children: tableRows,
                 ),
                 pw.Container(
                   padding: const pw.EdgeInsets.all(8),

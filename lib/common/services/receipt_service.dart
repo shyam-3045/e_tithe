@@ -175,6 +175,56 @@ class ReceiptRecord {
   }
 }
 
+class ReceiptFundDetail {
+  const ReceiptFundDetail({
+    required this.companyId,
+    required this.companyName,
+    required this.regionName,
+    required this.companyAddress,
+    required this.email,
+    required this.mobile,
+    required this.fundName,
+    required this.amount,
+  });
+
+  factory ReceiptFundDetail.fromJson(Map<String, dynamic> json) {
+    return ReceiptFundDetail(
+      companyId: _parseInt(json['companyID'] ?? json['companyId']),
+      companyName: _string(json['companyName']),
+      regionName: _string(json['regionName']),
+      companyAddress: _string(json['companyAddress']),
+      email: _string(json['email']),
+      mobile: _string(json['mobile']),
+      fundName: _string(json['fundName'] ?? json['fundType'] ?? json['particulars']),
+      amount: _parseDouble(json['amount']),
+    );
+  }
+
+  final int companyId;
+  final String companyName;
+  final String regionName;
+  final String companyAddress;
+  final String email;
+  final String mobile;
+  final String fundName;
+  final double amount;
+
+  static int _parseInt(Object? value) {
+    if (value is int) return value;
+    return int.tryParse((value ?? '').toString()) ?? 0;
+  }
+
+  static double _parseDouble(Object? value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse((value ?? '').toString()) ?? 0;
+  }
+
+  static String _string(Object? value, {String fallback = ''}) {
+    final String text = (value ?? '').toString().trim();
+    return text.isEmpty ? fallback : text;
+  }
+}
+
 class ReceiptService {
   ReceiptService({http.Client? client}) : _client = client ?? http.Client();
 
@@ -298,6 +348,33 @@ class ReceiptService {
     return items
         .whereType<Map<String, dynamic>>()
         .map(ReceiptRecord.fromJson)
+        .toList();
+  }
+
+  Future<List<ReceiptFundDetail>> fetchReceiptFundDetails(int receiptId) async {
+    final Uri uri = ApiConfig.uri('/api/Receipt/GetReceiptFundDetailsByReceiptId').replace(
+      queryParameters: <String, String>{
+        'receiptId': receiptId.toString(),
+      },
+    );
+    final Map<String, String> headers = await AuthService.instance
+        .authenticatedJsonHeaders();
+
+    print('[API] URL: $uri');
+
+    final http.Response response = await _client.get(uri, headers: headers);
+    print('[API] Response: ${response.statusCode} ${response.body}');
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to load receipt fund details. Please try again.');
+    }
+
+    final Object decoded = jsonDecode(response.body);
+    final List<dynamic> items = _extractList(decoded);
+
+    return items
+        .whereType<Map<String, dynamic>>()
+        .map(ReceiptFundDetail.fromJson)
         .toList();
   }
 

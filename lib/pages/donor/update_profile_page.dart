@@ -39,6 +39,9 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
   final _weddingDateController = TextEditingController();
   final _aadharController = TextEditingController();
   final _panController = TextEditingController();
+  final _passportController = TextEditingController();
+  final _voterIdController = TextEditingController();
+  final _drivingLicenceController = TextEditingController();
 
   // Address
   final _flatBuildingController = TextEditingController();
@@ -74,7 +77,13 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
   String _selectedState = 'Odisha';
 
   String _selectedIdentityDoc = 'Aadhar';
-  static const List<String> _identityDocOptions = ['Aadhar', 'PAN'];
+  static const List<String> _identityDocOptions = [
+    'Aadhar',
+    'PAN',
+    'Passport',
+    'Voter ID',
+    'Driving Licence',
+  ];
 
   static const List<String> _titles = ['Mr.', 'Mrs.', 'Ms.', 'Dr.'];
   static const List<String> _genders = ['Male', 'Female', 'Other'];
@@ -147,15 +156,15 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     AreaOption? matched;
     if (donor.areaId > 0) {
       matched = _areaOptions.cast<AreaOption?>().firstWhere(
-        (a) => a?.areaId == donor.areaId,
-        orElse: () => null,
-      );
+            (a) => a?.areaId == donor.areaId,
+            orElse: () => null,
+          );
     }
 
     matched ??= _areaOptions.cast<AreaOption?>().firstWhere(
-      (a) => (a?.areaName ?? '').toLowerCase() == donor.area.toLowerCase(),
-      orElse: () => null,
-    );
+          (a) => (a?.areaName ?? '').toLowerCase() == donor.area.toLowerCase(),
+          orElse: () => null,
+        );
 
     if (matched == null) return;
     setState(() {
@@ -193,8 +202,17 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
         _weddingDateController.text = donor.weddingDate;
         _aadharController.text = donor.aadharNo;
         _panController.text = donor.panNo;
+        _passportController.text = donor.passport;
+        _voterIdController.text = donor.voterId;
+        _drivingLicenceController.text = donor.drivingLicence;
         if (donor.panNo.trim().isNotEmpty && donor.aadharNo.trim().isEmpty) {
           _selectedIdentityDoc = 'PAN';
+        } else if (donor.passport.trim().isNotEmpty) {
+          _selectedIdentityDoc = 'Passport';
+        } else if (donor.voterId.trim().isNotEmpty) {
+          _selectedIdentityDoc = 'Voter ID';
+        } else if (donor.drivingLicence.trim().isNotEmpty) {
+          _selectedIdentityDoc = 'Driving Licence';
         } else {
           _selectedIdentityDoc = 'Aadhar';
         }
@@ -249,6 +267,9 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     _weddingDateController.dispose();
     _aadharController.dispose();
     _panController.dispose();
+    _passportController.dispose();
+    _voterIdController.dispose();
+    _drivingLicenceController.dispose();
     _flatBuildingController.dispose();
     _streetController.dispose();
     _cityController.dispose();
@@ -290,8 +311,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     if (pickedDate == null) return;
 
     setState(() {
-      controller.text =
-          '${pickedDate.day.toString().padLeft(2, '0')}/'
+      controller.text = '${pickedDate.day.toString().padLeft(2, '0')}/'
           '${pickedDate.month.toString().padLeft(2, '0')}/'
           '${pickedDate.year}';
       if (controller == _dependentBirthDateController) {
@@ -414,8 +434,6 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     return '${ApiConfig.baseUrl}$normalizedPath';
   }
 
-
-
   void _removePhoto() {
     setState(() {
       _photoUrlController.clear();
@@ -430,6 +448,64 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     });
   }
 
+  void _clearIdentityDocumentControllers() {
+    _aadharController.clear();
+    _panController.clear();
+    _passportController.clear();
+    _voterIdController.clear();
+    _drivingLicenceController.clear();
+  }
+
+  TextEditingController get _selectedIdentityController {
+    switch (_selectedIdentityDoc) {
+      case 'PAN':
+        return _panController;
+      case 'Passport':
+        return _passportController;
+      case 'Voter ID':
+        return _voterIdController;
+      case 'Driving Licence':
+        return _drivingLicenceController;
+      case 'Aadhar':
+      default:
+        return _aadharController;
+    }
+  }
+
+  String get _selectedIdentityLabel {
+    switch (_selectedIdentityDoc) {
+      case 'PAN':
+        return 'PAN';
+      case 'Passport':
+        return 'Passport';
+      case 'Voter ID':
+        return 'Voter ID';
+      case 'Driving Licence':
+        return 'Driving Licence';
+      case 'Aadhar':
+      default:
+        return 'Aadhar No';
+    }
+  }
+
+  TextInputType? get _selectedIdentityKeyboardType {
+    switch (_selectedIdentityDoc) {
+      case 'Aadhar':
+        return TextInputType.number;
+      default:
+        return TextInputType.text;
+    }
+  }
+
+  TextCapitalization get _selectedIdentityCapitalization {
+    switch (_selectedIdentityDoc) {
+      case 'Aadhar':
+        return TextCapitalization.none;
+      default:
+        return TextCapitalization.characters;
+    }
+  }
+
   Map<String, dynamic> _buildUpdatePayload() {
     final DateTime now = DateTime.now().toUtc();
     final DonorDetails? donor = _loadedDonor;
@@ -439,10 +515,9 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     final int currentUserId = user?.userID ?? 0;
     final int areaLeaderId =
         (userTypeLower.contains('area') && userTypeLower.contains('leader'))
-        ? currentUserId
-        : 0;
-    final int promotionStaffId =
-        (userTypeLower.contains('promo') ||
+            ? currentUserId
+            : 0;
+    final int promotionStaffId = (userTypeLower.contains('promo') ||
             userTypeLower.contains('promotional') ||
             userTypeLower.contains('promotion'))
         ? currentUserId
@@ -486,15 +561,25 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       addDependent(d);
     }
 
-    final List<Map<String, dynamic>> dependentsPayload = mergedDependents.values
-        .map((d) => d.toJson())
-        .toList();
+    final List<Map<String, dynamic>> dependentsPayload =
+        mergedDependents.values.map((d) => d.toJson()).toList();
 
     return <String, dynamic>{
       'donorID': widget.donorId ?? 0,
       'donorName': _donorNameController.text.trim(),
-      'panNumber': _selectedIdentityDoc == 'PAN' ? _panController.text.trim() : '',
-      'aadhaarNumber': _selectedIdentityDoc == 'Aadhar' ? _aadharController.text.trim() : '',
+      'panNumber':
+          _selectedIdentityDoc == 'PAN' ? _panController.text.trim() : '',
+      'aadhaarNumber':
+          _selectedIdentityDoc == 'Aadhar' ? _aadharController.text.trim() : '',
+      'passport': _selectedIdentityDoc == 'Passport'
+          ? _passportController.text.trim()
+          : '',
+      'voterID': _selectedIdentityDoc == 'Voter ID'
+          ? _voterIdController.text.trim()
+          : '',
+      'drivingLicence': _selectedIdentityDoc == 'Driving Licence'
+          ? _drivingLicenceController.text.trim()
+          : '',
       'birthDate': _toApiDateString(
         _parseDateFlexible(_birthDateController.text),
       ),
@@ -522,9 +607,8 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       'userID': user?.userID ?? 0,
       'isActive': true,
       'deleted': false,
-      'photo': _selectedPhotoBytes != null
-          ? ''
-          : _photoUrlController.text.trim(),
+      'photo':
+          _selectedPhotoBytes != null ? '' : _photoUrlController.text.trim(),
       'createdOn': now.toIso8601String(),
       'createdBy': updatedBy,
       'modifiedOn': now.toIso8601String(),
@@ -584,7 +668,8 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
 
           print('[API] Uploading photo to $photoUri...');
           final streamedResponse = await request.send();
-          final photoResponse = await http.Response.fromStream(streamedResponse);
+          final photoResponse =
+              await http.Response.fromStream(streamedResponse);
           print('[API] Photo upload status: ${photoResponse.statusCode}');
           print('[API] Photo upload body: ${photoResponse.body}');
         } catch (e) {
@@ -794,14 +879,19 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                                             _selectedPhotoBytes!,
                                             fit: BoxFit.cover,
                                           )
-                                        : _photoUrlController.text.trim().isEmpty
+                                        : _photoUrlController.text
+                                                .trim()
+                                                .isEmpty
                                             ? const Icon(
                                                 Icons.person_rounded,
                                                 color: AppColors.iconPurple,
                                                 size: 32,
                                               )
                                             : Image.network(
-                                                _photoUrl(_photoUrlController.text.trim()) ?? '',
+                                                _photoUrl(_photoUrlController
+                                                        .text
+                                                        .trim()) ??
+                                                    '',
                                                 fit: BoxFit.cover,
                                                 errorBuilder: (context, _, __) {
                                                   return const Icon(
@@ -816,8 +906,11 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                                 Expanded(
                                   child: Text(
                                     _selectedPhotoBytes != null
-                                        ? (_selectedPhoto?.name ?? 'New image selected')
-                                        : _photoUrlController.text.trim().isEmpty
+                                        ? (_selectedPhoto?.name ??
+                                            'New image selected')
+                                        : _photoUrlController.text
+                                                .trim()
+                                                .isEmpty
                                             ? 'No photo selected'
                                             : _photoUrlController.text.trim(),
                                     maxLines: 2,
@@ -841,11 +934,12 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                                 ),
                                 const SizedBox(width: 10),
                                 OutlinedButton.icon(
-                                  onPressed:
-                                      (_photoUrlController.text.trim().isEmpty &&
-                                              _selectedPhotoBytes == null)
-                                          ? null
-                                          : _removePhoto,
+                                  onPressed: (_photoUrlController.text
+                                              .trim()
+                                              .isEmpty &&
+                                          _selectedPhotoBytes == null)
+                                      ? null
+                                      : _removePhoto,
                                   icon: const Icon(
                                     Icons.delete_outline_rounded,
                                   ),
@@ -908,26 +1002,18 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                           if (value == null) return;
                           setState(() {
                             _selectedIdentityDoc = value;
-                            _aadharController.clear();
-                            _panController.clear();
+                            _clearIdentityDocumentControllers();
                           });
                         },
                       ),
                       const SizedBox(height: 14),
-                      if (_selectedIdentityDoc == 'Aadhar')
-                        _OutlinedTextField(
-                          controller: _aadharController,
-                          label: 'Aadhar No',
-                          icon: Icons.credit_card_rounded,
-                          keyboardType: TextInputType.number,
-                        )
-                      else
-                        _OutlinedTextField(
-                          controller: _panController,
-                          label: 'PAN',
-                          icon: Icons.badge_outlined,
-                          textCapitalization: TextCapitalization.characters,
-                        ),
+                      _OutlinedTextField(
+                        controller: _selectedIdentityController,
+                        label: _selectedIdentityLabel,
+                        icon: Icons.badge_outlined,
+                        keyboardType: _selectedIdentityKeyboardType,
+                        textCapitalization: _selectedIdentityCapitalization,
+                      ),
                     ],
                   ),
                 ),

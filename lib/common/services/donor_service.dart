@@ -31,6 +31,9 @@ class DonorDetails {
     required this.weddingDate,
     required this.aadharNo,
     required this.panNo,
+    required this.passport,
+    required this.voterId,
+    required this.drivingLicence,
     required this.organization,
     required this.address,
     required this.dependents,
@@ -66,9 +69,17 @@ class DonorDetails {
       birthDate: _string(json['birthDate'] ?? json['dob']),
       weddingDate: _string(json['weddingDate'] ?? json['anniversaryDate']),
       aadharNo: _string(
-        json['aadharNo'] ?? json['aadhaarNo'] ?? json['aadhaar'],
+        json['aadharNo'] ??
+            json['aadhaarNo'] ??
+            json['aadhaar'] ??
+            json['aadhaarNumber'],
       ),
       panNo: _string(json['panNo'] ?? json['panNumber']),
+      passport: _string(json['passport']),
+      voterId: _string(json['voterID'] ?? json['voterId']),
+      drivingLicence: _string(
+        json['drivingLicence'] ?? json['drivingLicense'],
+      ),
       organization: _string(json['organization']),
       address: _string(json['address']),
       dependents: _parseDependents(json),
@@ -98,6 +109,9 @@ class DonorDetails {
   final String weddingDate;
   final String aadharNo;
   final String panNo;
+  final String passport;
+  final String voterId;
+  final String drivingLicence;
   final String organization;
   final String address;
   final List<DonorDependent> dependents;
@@ -213,8 +227,8 @@ class DonorService {
 
   Future<DonorDetails> fetchDonorById(int donorId) async {
     final Uri uri = ApiConfig.uri(ApiEndpoints.donorById(donorId));
-    final Map<String, String> headers = await AuthService.instance
-        .authenticatedJsonHeaders();
+    final Map<String, String> headers =
+        await AuthService.instance.authenticatedJsonHeaders();
 
     print('[API] URL: $uri');
     print('[API] Payload: N/A');
@@ -243,8 +257,8 @@ class DonorService {
     required Map<String, dynamic> payload,
   }) async {
     final Uri uri = ApiConfig.uri(ApiEndpoints.donorById(donorId));
-    final Map<String, String> headers = await AuthService.instance
-        .authenticatedJsonHeaders();
+    final Map<String, String> headers =
+        await AuthService.instance.authenticatedJsonHeaders();
 
     final String body = jsonEncode(payload);
     print('[API] PUT $uri');

@@ -29,6 +29,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
   final _weddingDateController = TextEditingController();
   final _aadharController = TextEditingController();
   final _panController = TextEditingController();
+  final _passportController = TextEditingController();
+  final _voterIdController = TextEditingController();
+  final _drivingLicenceController = TextEditingController();
   final _flatBuildingController = TextEditingController();
   final _streetController = TextEditingController();
   final _cityController = TextEditingController();
@@ -69,7 +72,13 @@ class _NewDonorPageState extends State<NewDonorPage> {
   String? _selectedState = 'Andaman Nicobar';
 
   String _selectedIdentityDoc = 'Aadhar';
-  static const List<String> _identityDocOptions = ['Aadhar', 'PAN'];
+  static const List<String> _identityDocOptions = [
+    'Aadhar',
+    'PAN',
+    'Passport',
+    'Voter ID',
+    'Driving Licence',
+  ];
 
   static const List<String> _titles = ['Mr.', 'Mrs.', 'Ms.', 'Dr.'];
   static const List<String> _genders = ['Male', 'Female', 'Other'];
@@ -143,11 +152,11 @@ class _NewDonorPageState extends State<NewDonorPage> {
     });
 
     try {
-      final List<AgentAreaOption> areas = await AgentAreaService.instance
-          .fetchAreasByUserTypeAndUserId(
-            userTypeId: userTypeId,
-            userId: userId,
-          );
+      final List<AgentAreaOption> areas =
+          await AgentAreaService.instance.fetchAreasByUserTypeAndUserId(
+        userTypeId: userTypeId,
+        userId: userId,
+      );
 
       print('[NewDonorPage] Areas loaded: ${areas.length} areas');
       for (final area in areas) {
@@ -178,6 +187,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
     _weddingDateController.dispose();
     _aadharController.dispose();
     _panController.dispose();
+    _passportController.dispose();
+    _voterIdController.dispose();
+    _drivingLicenceController.dispose();
     _flatBuildingController.dispose();
     _streetController.dispose();
     _cityController.dispose();
@@ -247,8 +259,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
     }
 
     setState(() {
-      controller.text =
-          '${pickedDate.day.toString().padLeft(2, '0')}/'
+      controller.text = '${pickedDate.day.toString().padLeft(2, '0')}/'
           '${pickedDate.month.toString().padLeft(2, '0')}/'
           '${pickedDate.year}';
       if (controller == _dependentBirthDateController) {
@@ -290,6 +301,64 @@ class _NewDonorPageState extends State<NewDonorPage> {
   String _toCamelCase(String str) {
     if (str.isEmpty) return '';
     return str[0].toLowerCase() + str.substring(1);
+  }
+
+  void _clearIdentityDocumentControllers() {
+    _aadharController.clear();
+    _panController.clear();
+    _passportController.clear();
+    _voterIdController.clear();
+    _drivingLicenceController.clear();
+  }
+
+  TextEditingController get _selectedIdentityController {
+    switch (_selectedIdentityDoc) {
+      case 'PAN':
+        return _panController;
+      case 'Passport':
+        return _passportController;
+      case 'Voter ID':
+        return _voterIdController;
+      case 'Driving Licence':
+        return _drivingLicenceController;
+      case 'Aadhar':
+      default:
+        return _aadharController;
+    }
+  }
+
+  String get _selectedIdentityLabel {
+    switch (_selectedIdentityDoc) {
+      case 'PAN':
+        return 'PAN';
+      case 'Passport':
+        return 'Passport';
+      case 'Voter ID':
+        return 'Voter ID';
+      case 'Driving Licence':
+        return 'Driving Licence';
+      case 'Aadhar':
+      default:
+        return 'Aadhar No';
+    }
+  }
+
+  TextInputType? get _selectedIdentityKeyboardType {
+    switch (_selectedIdentityDoc) {
+      case 'Aadhar':
+        return TextInputType.number;
+      default:
+        return TextInputType.text;
+    }
+  }
+
+  TextCapitalization get _selectedIdentityCapitalization {
+    switch (_selectedIdentityDoc) {
+      case 'Aadhar':
+        return TextCapitalization.none;
+      default:
+        return TextCapitalization.characters;
+    }
   }
 
   void _addDependentDraft() {
@@ -357,10 +426,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
     final int currentUserId = _userData?.userID ?? 0;
     final int areaLeaderId =
         (userTypeLower.contains('area') && userTypeLower.contains('leader'))
-        ? currentUserId
-        : 0;
-    final int promotionStaffId =
-        (userTypeLower.contains('promo') ||
+            ? currentUserId
+            : 0;
+    final int promotionStaffId = (userTypeLower.contains('promo') ||
             userTypeLower.contains('promotional') ||
             userTypeLower.contains('promotion'))
         ? currentUserId
@@ -370,8 +438,19 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'donorID': 0,
       'donorName': _donorNameController.text.trim(),
       'photo': '',
-      'panNumber': _selectedIdentityDoc == 'PAN' ? _panController.text.trim() : '',
-      'aadhaarNumber': _selectedIdentityDoc == 'Aadhar' ? _aadharController.text.trim() : '',
+      'panNumber':
+          _selectedIdentityDoc == 'PAN' ? _panController.text.trim() : '',
+      'aadhaarNumber':
+          _selectedIdentityDoc == 'Aadhar' ? _aadharController.text.trim() : '',
+      'passport': _selectedIdentityDoc == 'Passport'
+          ? _passportController.text.trim()
+          : '',
+      'voterID': _selectedIdentityDoc == 'Voter ID'
+          ? _voterIdController.text.trim()
+          : '',
+      'drivingLicence': _selectedIdentityDoc == 'Driving Licence'
+          ? _drivingLicenceController.text.trim()
+          : '',
       'birthDate': _toApiDateString(_parseUiDate(_birthDateController.text)),
       'marriageDate': (_selectedMaritalStatus == 'Married')
           ? _toApiDateString(_parseUiDate(_weddingDateController.text))
@@ -407,8 +486,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
 
   Future<http.Response> _submitDonor(Map<String, dynamic> payload) async {
     final Uri uri = ApiConfig.uri(ApiEndpoints.donor);
-    final Map<String, String> headers = await AuthService.instance
-        .authenticatedJsonHeaders();
+    final Map<String, String> headers =
+        await AuthService.instance.authenticatedJsonHeaders();
 
     final String body = jsonEncode(payload);
     print('[API] POST $uri');
@@ -505,7 +584,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
 
             if (newDonorId > 0) {
               final String? token = await AuthService.instance.token;
-              final Uri photoUri = ApiConfig.uri('/api/Donor/$newDonorId/photo');
+              final Uri photoUri =
+                  ApiConfig.uri('/api/Donor/$newDonorId/photo');
               final request = http.MultipartRequest('POST', photoUri);
               if (token != null) {
                 request.headers['Authorization'] = 'Bearer $token';
@@ -520,7 +600,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
 
               print('[API] Uploading photo to $photoUri...');
               final streamedResponse = await request.send();
-              final photoResponse = await http.Response.fromStream(streamedResponse);
+              final photoResponse =
+                  await http.Response.fromStream(streamedResponse);
               print('[API] Photo upload status: ${photoResponse.statusCode}');
               print('[API] Photo upload body: ${photoResponse.body}');
             }
@@ -729,26 +810,18 @@ class _NewDonorPageState extends State<NewDonorPage> {
                           if (value == null) return;
                           setState(() {
                             _selectedIdentityDoc = value;
-                            _aadharController.clear();
-                            _panController.clear();
+                            _clearIdentityDocumentControllers();
                           });
                         },
                       ),
                       const SizedBox(height: 16),
-                      if (_selectedIdentityDoc == 'Aadhar')
-                        _StyledTextField(
-                          controller: _aadharController,
-                          label: 'Aadhar No',
-                          icon: Icons.badge_outlined,
-                          keyboardType: TextInputType.number,
-                        )
-                      else
-                        _StyledTextField(
-                          controller: _panController,
-                          label: 'PAN',
-                          icon: Icons.credit_card_rounded,
-                          textCapitalization: TextCapitalization.characters,
-                        ),
+                      _StyledTextField(
+                        controller: _selectedIdentityController,
+                        label: _selectedIdentityLabel,
+                        icon: Icons.badge_outlined,
+                        keyboardType: _selectedIdentityKeyboardType,
+                        textCapitalization: _selectedIdentityCapitalization,
+                      ),
                     ],
                   ),
                 ),

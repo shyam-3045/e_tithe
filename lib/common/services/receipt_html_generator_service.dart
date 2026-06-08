@@ -13,13 +13,11 @@ class ReceiptHtmlGeneratorService {
         ? ''
         : '<img class="logo" src="data:image/jpeg;base64,$logoBase64" alt="Logo" />';
 
-    final String notesLine = data.notes.trim().isNotEmpty
-        ? _escapeHtml(data.notes)
-        : '-';
+    final String notesLine =
+        data.notes.trim().isNotEmpty ? _escapeHtml(data.notes) : '-';
 
-    final String amountText = data.amount.trim().isEmpty
-        ? ''
-        : data.amount.trim();
+    final String amountText =
+        data.amount.trim().isEmpty ? '' : data.amount.trim();
 
     final List<ReceiptFundDetail> details = data.fundDetails.isNotEmpty
         ? data.fundDetails
@@ -32,9 +30,31 @@ class ReceiptHtmlGeneratorService {
               email: '',
               mobile: '',
               fundName: data.fundType,
-              amount: double.tryParse(data.amount.replaceAll(RegExp(r'[^0-9.]'), '')) ?? 0.0,
+              amount: double.tryParse(
+                      data.amount.replaceAll(RegExp(r'[^0-9.]'), '')) ??
+                  0.0,
             )
           ];
+
+    final ReceiptFundDetail companyDetail = _resolveCompanyDetail(details);
+    final String companyName = _valueOrFallback(
+      companyDetail.companyName,
+      'SCRIPTURE UNION & CSSM COUNCIL OF INDIA',
+    );
+    final String regionName = _valueOrFallback(
+      companyDetail.regionName,
+      'TAMIL NADU SOUTH',
+    );
+    final String companyAddress = _valueOrFallback(
+      companyDetail.companyAddress,
+      "No.56 C/4 (Upstairs) St. Mary's Street, Perumalpura mTirunelveli-627007",
+    );
+    final String companyMobile = companyDetail.mobile.trim();
+    final String companyEmail = companyDetail.email.trim();
+    final String footerContact = [
+      if (companyMobile.isNotEmpty) 'Phone: ${_escapeHtml(companyMobile)}',
+      if (companyEmail.isNotEmpty) 'Email: ${_escapeHtml(companyEmail)}',
+    ].join('  ');
 
     final String tableRows = details.map((detail) {
       final String detailAmount = 'INR ${detail.amount.toStringAsFixed(2)}';
@@ -116,10 +136,9 @@ class ReceiptHtmlGeneratorService {
                     $logoTag
                 </div>
                 <div class="header-right">
-                    <div class="org-title">SCRIPTURE UNION &amp; CSSM COUNCIL OF INDIA</div>
-                    <div class="org-sub">Society Registration Number : 1/1975</div>
-                    <div class="org-sub">TAMIL NADU SOUTH</div>
-                    <div class="org-line">No.56 C/4 (Upstairs) St. Mary&#39;s Street, Perumalpura mTirunelveli-627007</div>
+                    <div class="org-title">${_escapeHtml(companyName)}</div>
+                    <div class="org-sub">${_escapeHtml(regionName)}</div>
+                    <div class="org-line">${_escapeHtml(companyAddress)}</div>
                 </div>
             </div>
 
@@ -169,12 +188,30 @@ class ReceiptHtmlGeneratorService {
 
             <div class="footer">
                 <div class="verse">"Your word is lamp to my feet and a light for my path. Psalms 119:105"</div>
-                <div>Head Office: No. 27 First Main Road, United India Nagar, Ayanavaram, Chennai-600023</div>
-                <div>Phone: 044-2674 0137  Email: scriptureunionindia@gmail.com</div>
+                <div>${_escapeHtml(companyAddress)}</div>
+                ${footerContact.isEmpty ? '' : '<div>$footerContact</div>'}
             </div>
         </div>
 </body>
 </html>''';
+  }
+
+  ReceiptFundDetail _resolveCompanyDetail(List<ReceiptFundDetail> details) {
+    for (final ReceiptFundDetail detail in details) {
+      if (detail.companyName.trim().isNotEmpty ||
+          detail.regionName.trim().isNotEmpty ||
+          detail.companyAddress.trim().isNotEmpty ||
+          detail.mobile.trim().isNotEmpty ||
+          detail.email.trim().isNotEmpty) {
+        return detail;
+      }
+    }
+    return details.first;
+  }
+
+  String _valueOrFallback(String value, String fallback) {
+    final String normalized = value.trim();
+    return normalized.isEmpty ? fallback : normalized;
   }
 
   String _escapeHtml(String text) {

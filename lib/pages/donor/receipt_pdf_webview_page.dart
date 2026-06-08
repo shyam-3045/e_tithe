@@ -59,6 +59,25 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                 0.0,
           ),
         ];
+  final ReceiptFundDetail companyDetail = _resolveCompanyDetail(pdfDetails);
+  final String companyName = _valueOrFallback(
+    companyDetail.companyName,
+    'SCRIPTURE UNION & CSSM COUNCIL OF INDIA',
+  );
+  final String regionName = _valueOrFallback(
+    companyDetail.regionName,
+    'TAMIL NADU SOUTH',
+  );
+  final String companyAddress = _valueOrFallback(
+    companyDetail.companyAddress,
+    "No.56 C/4 (Upstairs) St. Mary's Street, Perumalpura mTirunelveli-627007",
+  );
+  final String companyMobile = companyDetail.mobile.trim();
+  final String companyEmail = companyDetail.email.trim();
+  final List<String> footerContactLines = <String>[
+    if (companyMobile.isNotEmpty) 'Phone: $companyMobile',
+    if (companyEmail.isNotEmpty) 'Email: $companyEmail',
+  ];
 
   final List<pw.TableRow> tableRows = [
     pw.TableRow(
@@ -180,7 +199,7 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                         crossAxisAlignment: pw.CrossAxisAlignment.stretch,
                         children: [
                           pw.Text(
-                            'SCRIPTURE UNION & CSSM COUNCIL OF INDIA',
+                            companyName,
                             textAlign: pw.TextAlign.center,
                             style: pw.TextStyle(
                               fontSize: 11,
@@ -189,12 +208,7 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                           ),
                           pw.SizedBox(height: 2),
                           pw.Text(
-                            'Society Registration Number : 1/1975',
-                            textAlign: pw.TextAlign.center,
-                            style: const pw.TextStyle(fontSize: 9),
-                          ),
-                          pw.Text(
-                            'TAMIL NADU SOUTH',
+                            regionName,
                             textAlign: pw.TextAlign.center,
                             style: pw.TextStyle(
                               fontSize: 9.5,
@@ -202,7 +216,7 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                             ),
                           ),
                           pw.Text(
-                            "No.56 C/4 (Upstairs) St. Mary's Street, Perumalpura mTirunelveli-627007",
+                            companyAddress,
                             textAlign: pw.TextAlign.center,
                             style: const pw.TextStyle(fontSize: 9),
                           ),
@@ -390,14 +404,17 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                     ),
                     pw.SizedBox(height: 3),
                     pw.Text(
-                      'Head Office: No. 27 First Main Road, United India Nagar, Ayanavaram, Chennai-600023',
+                      companyAddress,
                       textAlign: pw.TextAlign.center,
                       style: const pw.TextStyle(fontSize: 8.2),
                     ),
-                    pw.Text(
-                      'Phone: 044-2674 0137  Email: scriptureunionindia@gmail.com',
-                      textAlign: pw.TextAlign.center,
-                      style: const pw.TextStyle(fontSize: 8.2),
+                    if (footerContactLines.isNotEmpty) pw.SizedBox(height: 3),
+                    ...footerContactLines.map(
+                      (String line) => pw.Text(
+                        line,
+                        textAlign: pw.TextAlign.center,
+                        style: const pw.TextStyle(fontSize: 8.2),
+                      ),
                     ),
                   ],
                 ),
@@ -414,6 +431,24 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
 
 String sanitizeReceiptPdfFileName(String value) {
   return value.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+}
+
+ReceiptFundDetail _resolveCompanyDetail(List<ReceiptFundDetail> details) {
+  for (final ReceiptFundDetail detail in details) {
+    if (detail.companyName.trim().isNotEmpty ||
+        detail.regionName.trim().isNotEmpty ||
+        detail.companyAddress.trim().isNotEmpty ||
+        detail.mobile.trim().isNotEmpty ||
+        detail.email.trim().isNotEmpty) {
+      return detail;
+    }
+  }
+  return details.first;
+}
+
+String _valueOrFallback(String value, String fallback) {
+  final String normalized = value.trim();
+  return normalized.isEmpty ? fallback : normalized;
 }
 
 class ReceiptPdfWebViewPage extends StatefulWidget {

@@ -42,6 +42,18 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
   DateTime _selectedReceiptDate = DateTime.now();
   String _donorSearchQuery = '';
 
+  String _toApiRepType(String userTypeName) {
+    final String normalized = userTypeName.trim();
+    if (normalized.isEmpty) return '';
+
+    final String lower = normalized.toLowerCase();
+    if (lower.contains('local') && lower.contains('member')) {
+      return 'LocalUnit';
+    }
+
+    return normalized;
+  }
+
   List<_ReceiptItem> get _filteredReceipts {
     Iterable<_ReceiptItem> items = _allReceipts;
 
@@ -113,7 +125,7 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
         throw Exception('User data not found. Please login again.');
       }
 
-      final String repType = userData.userTypeName.trim();
+      final String repType = _toApiRepType(userData.userTypeName);
       final int repId = userData.userID;
       if (repType.isEmpty || repId <= 0) {
         throw Exception('User type or user ID is missing. Please login again.');
@@ -778,16 +790,16 @@ class _ReceiptCard extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 14),
-                      Text(
-                        '₹ ${_formatMoney(item.amount)}',
-                        style: TextStyle(
-                          color: item.isCancelled
-                              ? AppColors.textGrey
-                              : AppColors.textDark,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w900,
-                        ),
-                      ),
+                  Text(
+                    '₹ ${_formatMoney(item.amount)}',
+                    style: TextStyle(
+                      color: item.isCancelled
+                          ? AppColors.textGrey
+                          : AppColors.textDark,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ],
               ),
             ],

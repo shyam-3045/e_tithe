@@ -25,6 +25,18 @@ class DonorsListPage extends StatefulWidget {
 class _DonorsListPageState extends State<DonorsListPage> {
   late Future<List<_DonorListItem>> _donorsFuture;
 
+  String _toApiUserType(String userTypeName) {
+    final String normalized = userTypeName.trim();
+    if (normalized.isEmpty) return '';
+
+    final String lower = normalized.toLowerCase();
+    if (lower.contains('local') && lower.contains('member')) {
+      return 'LocalUnit';
+    }
+
+    return normalized;
+  }
+
   @override
   void initState() {
     super.initState();
@@ -47,8 +59,9 @@ class _DonorsListPageState extends State<DonorsListPage> {
       print('[DonorsListPage] - userId: ${userData.userID}');
 
       // Build API URL with userTypeName and userId
+      final String apiUserType = _toApiUserType(userData.userTypeName);
       final String apiUrl =
-          '/api/Donor/gerdonorsbyusertypeanduserid?usertype=${userData.userTypeName}&userid=${userData.userID}';
+          '/api/Donor/gerdonorsbyusertypeanduserid?usertype=$apiUserType&userid=${userData.userID}';
       final Uri uri = ApiConfig.uri(apiUrl);
       final Map<String, String> headers =
           await AuthService.instance.authenticatedJsonHeaders();

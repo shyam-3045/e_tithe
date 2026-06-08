@@ -1239,6 +1239,10 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
   String _normalizeRepType(String userTypeName) {
     final String trimmed = userTypeName.trim();
     if (trimmed.isEmpty) return '';
+    final String lower = trimmed.toLowerCase();
+    if (lower.contains('local') && lower.contains('member')) {
+      return 'localUnit';
+    }
     return trimmed[0].toLowerCase() + trimmed.substring(1);
   }
 

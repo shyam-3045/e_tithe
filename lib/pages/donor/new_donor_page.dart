@@ -305,6 +305,18 @@ class _NewDonorPageState extends State<NewDonorPage> {
     return str[0].toLowerCase() + str.substring(1);
   }
 
+  String _toApiUserType(String userTypeName) {
+    final String normalized = userTypeName.trim();
+    if (normalized.isEmpty) return '';
+
+    final String lower = normalized.toLowerCase();
+    if (lower.contains('local') && lower.contains('member')) {
+      return 'localUnit';
+    }
+
+    return _toCamelCase(normalized);
+  }
+
   void _clearIdentityDocumentControllers() {
     _aadharController.clear();
     _panController.clear();
@@ -478,7 +490,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'maritalStatus': (_selectedMaritalStatus ?? '').trim(),
       'regionID': _userData?.regionID ?? 0,
       'areaID': selectedAreaId,
-      'userType': _toCamelCase(_userData?.userTypeName ?? ''),
+      'userType': _toApiUserType(_userData?.userTypeName ?? ''),
       'localMemberID': localMemberId,
       'mobile': _mobileController.text.trim(),
       'whatsAppNumber': _whatsAppController.text.trim(),

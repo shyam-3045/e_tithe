@@ -353,6 +353,18 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     return '$y-$m-$d';
   }
 
+  String _toApiUserType(String userTypeName) {
+    final String normalized = userTypeName.trim();
+    if (normalized.isEmpty) return '';
+
+    final String lower = normalized.toLowerCase();
+    if (lower.contains('local') && lower.contains('member')) {
+      return 'localUnit';
+    }
+
+    return normalized;
+  }
+
   void _addDependentDraft() {
     final String name = _dependentNameController.text.trim();
     final String relationship = _dependentRelationshipController.text.trim();
@@ -625,7 +637,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       'organization': donor?.organization ?? '',
       'address': _addressController.text.trim(),
       'type': _selectedDonorType ?? 0,
-      'userType': user?.userTypeName ?? '',
+      'userType': _toApiUserType(user?.userTypeName ?? ''),
       'userID': user?.userID ?? 0,
       'isActive': true,
       'deleted': false,

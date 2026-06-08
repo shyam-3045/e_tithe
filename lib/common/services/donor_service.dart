@@ -9,6 +9,7 @@ import 'auth_service.dart';
 class DonorDetails {
   const DonorDetails({
     required this.donorId,
+    required this.type,
     required this.regionId,
     required this.areaId,
     required this.name,
@@ -42,6 +43,7 @@ class DonorDetails {
   factory DonorDetails.fromJson(Map<String, dynamic> json) {
     return DonorDetails(
       donorId: _parseInt(json['donorId'] ?? json['donorID'] ?? json['id']),
+      type: _parseInt(json['type']),
       regionId: _parseInt(json['regionID'] ?? json['regionId']),
       name: _string(json['donorName'] ?? json['name'] ?? json['fullName']),
       areaId: _parseInt(json['areaID'] ?? json['areaId']),
@@ -87,6 +89,7 @@ class DonorDetails {
   }
 
   final int donorId;
+  final int type;
   final int regionId;
   final int areaId;
   final String name;

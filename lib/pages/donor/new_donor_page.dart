@@ -64,14 +64,15 @@ class _NewDonorPageState extends State<NewDonorPage> {
   Uint8List? _selectedPhotoBytes;
 
   String? _selectedTitle = 'Mr.';
-  String? _selectedGender = 'Male';
-  String? _selectedMaritalStatus = 'Married';
-  String? _selectedMembership = 'Member';
+  String? _selectedGender;
+  String? _selectedMaritalStatus;
+  String? _selectedMembership;
   String? _selectedArea;
   int? _selectedRegionId;
-  String? _selectedState = 'Andaman Nicobar';
+  String? _selectedState;
+  int? _selectedDonorType;
 
-  String _selectedIdentityDoc = 'Aadhar';
+  String? _selectedIdentityDoc;
   static const List<String> _identityDocOptions = [
     'Aadhar',
     'PAN',
@@ -322,6 +323,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
       case 'Driving Licence':
         return _drivingLicenceController;
       case 'Aadhar':
+      case null:
       default:
         return _aadharController;
     }
@@ -338,6 +340,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
       case 'Driving Licence':
         return 'Driving Licence';
       case 'Aadhar':
+      case null:
       default:
         return 'Aadhar No';
     }
@@ -346,6 +349,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
   TextInputType? get _selectedIdentityKeyboardType {
     switch (_selectedIdentityDoc) {
       case 'Aadhar':
+      case null:
         return TextInputType.number;
       default:
         return TextInputType.text;
@@ -355,10 +359,20 @@ class _NewDonorPageState extends State<NewDonorPage> {
   TextCapitalization get _selectedIdentityCapitalization {
     switch (_selectedIdentityDoc) {
       case 'Aadhar':
+      case null:
         return TextCapitalization.none;
       default:
         return TextCapitalization.characters;
     }
+  }
+
+  bool get _hasSelectedDonorType => _selectedDonorType != null;
+
+  void _selectDonorType(int value) {
+    setState(() {
+      _selectedDonorType = value;
+      _selectedMembership = value == 1 ? 'Member' : 'Non-Member';
+    });
   }
 
   void _addDependentDraft() {
@@ -433,6 +447,10 @@ class _NewDonorPageState extends State<NewDonorPage> {
             userTypeLower.contains('promotion'))
         ? currentUserId
         : 0;
+    final int localMemberId =
+        (userTypeLower.contains('local') && userTypeLower.contains('member'))
+            ? currentUserId
+            : 0;
 
     return <String, dynamic>{
       'donorID': 0,
@@ -460,6 +478,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'regionID': _userData?.regionID ?? 0,
       'areaID': selectedAreaId,
       'userType': _toCamelCase(_userData?.userTypeName ?? ''),
+      'localMemberID': localMemberId,
       'mobile': _mobileController.text.trim(),
       'whatsAppNumber': _whatsAppController.text.trim(),
       'email': _emailController.text.trim(),
@@ -472,6 +491,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
       // Organization removed from UI; send empty string
       'organization': '',
       'address': _addressController.text.trim(),
+      'type': _selectedDonorType ?? 0,
       'isActive': true,
       'deleted': false,
       'createdOn': now.toIso8601String(),
@@ -499,6 +519,28 @@ class _NewDonorPageState extends State<NewDonorPage> {
 
   Future<void> _handleSave() async {
     FocusScope.of(context).unfocus();
+
+    if (!_hasSelectedDonorType) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Select Individual or Others to continue.'),
+        ),
+      );
+      return;
+    }
+
+    if (_selectedGender == null ||
+        _selectedMaritalStatus == null ||
+        _selectedState == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Select gender, marital status, and state to continue.',
+          ),
+        ),
+      );
+      return;
+    }
 
     if (_saving) {
       ScaffoldMessenger.of(
@@ -709,384 +751,423 @@ class _NewDonorPageState extends State<NewDonorPage> {
                   },
                   child: Column(
                     children: [
-                      Row(
+                      _DonorTypeSelector(
+                        value: _selectedDonorType,
+                        onChanged: _selectDonorType,
+                      ),
+                      const SizedBox(height: 16),
+                      IgnorePointer(
+                        ignoring: !_hasSelectedDonorType,
+                        child: AnimatedOpacity(
+                          duration: const Duration(milliseconds: 180),
+                          opacity: _hasSelectedDonorType ? 1 : 0.45,
+                          child: Column(
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    flex: 2,
+                                    child: _DropdownField<String>(
+                                      value: _selectedTitle,
+                                      items: _titles,
+                                      icon: Icons.arrow_drop_down_rounded,
+                                      onChanged: (value) {
+                                        setState(() {
+                                          _selectedTitle = value;
+                                        });
+                                      },
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    flex: 5,
+                                    child: _StyledTextField(
+                                      controller: _donorNameController,
+                                      label: 'Donor Name',
+                                      icon: Icons.person_rounded,
+                                      isRequired: true,
+                                      validator: (value) => _requiredValidator(
+                                        value,
+                                        'Donor name is required',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              _PhotoPickerCard(
+                                imageBytes: _selectedPhotoBytes,
+                                label: _selectedPhoto?.name,
+                                onTap: _handlePhoto,
+                              ),
+                              const SizedBox(height: 16),
+                              _ChoiceGroup(
+                                label: 'Gender',
+                                value: _selectedGender,
+                                options: _genders,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedGender = value;
+                                  });
+                                },
+                              ),
+                              const SizedBox(height: 16),
+                              _StyledTextField(
+                                controller: _birthDateController,
+                                label: 'Birth Date',
+                                icon: Icons.calendar_month_rounded,
+                                readOnly: true,
+                                onTap: () => _pickDate(_birthDateController),
+                              ),
+                              const SizedBox(height: 16),
+                              _ChoiceGroup(
+                                label: 'Marital Status',
+                                value: _selectedMaritalStatus,
+                                options: _maritalStatuses,
+                                onChanged: (value) {
+                                  setState(() {
+                                    _selectedMaritalStatus = value;
+                                    if (_selectedMaritalStatus != 'Married') {
+                                      _weddingDateController.clear();
+                                    }
+                                  });
+                                },
+                              ),
+                              if (_selectedMaritalStatus == 'Married') ...[
+                                const SizedBox(height: 16),
+                                _StyledTextField(
+                                  controller: _weddingDateController,
+                                  label: 'Wedding Date',
+                                  icon: Icons.event_rounded,
+                                  readOnly: true,
+                                  onTap: () =>
+                                      _pickDate(_weddingDateController),
+                                ),
+                              ],
+                              const SizedBox(height: 16),
+                              _ChoiceGroup(
+                                label: 'Membership',
+                                value: _selectedMembership,
+                                options: _membershipOptions,
+                              ),
+                              const SizedBox(height: 16),
+                              _DropdownField<String>(
+                                value: _selectedIdentityDoc,
+                                hintText: 'Identity Document Type',
+                                items: _identityDocOptions,
+                                icon: Icons.badge_outlined,
+                                onChanged: (value) {
+                                  if (value == null) return;
+                                  setState(() {
+                                    _selectedIdentityDoc = value;
+                                    _clearIdentityDocumentControllers();
+                                  });
+                                },
+                              ),
+                              if (_selectedIdentityDoc != null) ...[
+                                const SizedBox(height: 16),
+                                _StyledTextField(
+                                  controller: _selectedIdentityController,
+                                  label: _selectedIdentityLabel,
+                                  icon: Icons.badge_outlined,
+                                  keyboardType: _selectedIdentityKeyboardType,
+                                  textCapitalization:
+                                      _selectedIdentityCapitalization,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 18),
+                IgnorePointer(
+                  ignoring: !_hasSelectedDonorType,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: _hasSelectedDonorType ? 1 : 0.45,
+                    child: _SectionCard(
+                      title: 'Address Details',
+                      isExpanded: _addressExpanded,
+                      onToggle: () {
+                        if (!_hasSelectedDonorType) return;
+                        setState(() {
+                          _addressExpanded = !_addressExpanded;
+                        });
+                      },
+                      child: Column(
                         children: [
-                          Expanded(
-                            flex: 2,
-                            child: _DropdownField<String>(
-                              value: _selectedTitle,
-                              items: _titles,
-                              icon: Icons.arrow_drop_down_rounded,
+                          if (_loadingAreas)
+                            const Padding(
+                              padding: EdgeInsets.symmetric(vertical: 16),
+                              child: Center(
+                                child: SizedBox(
+                                  height: 18,
+                                  width: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2.5,
+                                  ),
+                                ),
+                              ),
+                            )
+                          else if (_areaOptions.isEmpty)
+                            Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(18),
+                                border: Border.all(color: AppColors.borderGrey),
+                              ),
+                              child: const Text(
+                                'No area available',
+                                style: TextStyle(
+                                  color: AppColors.textGrey,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            )
+                          else
+                            _DropdownField<String>(
+                              value: _selectedArea,
+                              hintText: 'Select Area',
+                              items: _areaOptions
+                                  .map((area) => area.areaName)
+                                  .toList(),
+                              icon: Icons.place_outlined,
+                              isRequired: true,
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Area is required';
+                                }
+                                return null;
+                              },
                               onChanged: (value) {
                                 setState(() {
-                                  _selectedTitle = value;
+                                  _selectedArea = value;
                                 });
                               },
                             ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            flex: 5,
-                            child: _StyledTextField(
-                              controller: _donorNameController,
-                              label: 'Donor Name',
-                              icon: Icons.person_rounded,
-                              isRequired: true,
-                              validator: (value) => _requiredValidator(
-                                value,
-                                'Donor name is required',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      _PhotoPickerCard(
-                        imageBytes: _selectedPhotoBytes,
-                        label: _selectedPhoto?.name,
-                        onTap: _handlePhoto,
-                      ),
-                      const SizedBox(height: 16),
-                      _ChoiceGroup(
-                        label: 'Gender',
-                        value: _selectedGender!,
-                        options: _genders,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedGender = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _birthDateController,
-                        label: 'Birth Date',
-                        icon: Icons.calendar_month_rounded,
-                        readOnly: true,
-                        onTap: () => _pickDate(_birthDateController),
-                      ),
-                      const SizedBox(height: 16),
-                      _ChoiceGroup(
-                        label: 'Marital Status',
-                        value: _selectedMaritalStatus!,
-                        options: _maritalStatuses,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedMaritalStatus = value;
-                            if (_selectedMaritalStatus != 'Married') {
-                              _weddingDateController.clear();
-                            }
-                          });
-                        },
-                      ),
-                      if (_selectedMaritalStatus == 'Married') ...[
-                        const SizedBox(height: 16),
-                        _StyledTextField(
-                          controller: _weddingDateController,
-                          label: 'Wedding Date',
-                          icon: Icons.event_rounded,
-                          readOnly: true,
-                          onTap: () => _pickDate(_weddingDateController),
-                        ),
-                      ],
-                      const SizedBox(height: 16),
-                      _ChoiceGroup(
-                        label: 'Membership',
-                        value: _selectedMembership!,
-                        options: _membershipOptions,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedMembership = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _DropdownField<String>(
-                        value: _selectedIdentityDoc,
-                        hintText: 'Identity Document Type',
-                        items: _identityDocOptions,
-                        icon: Icons.badge_outlined,
-                        onChanged: (value) {
-                          if (value == null) return;
-                          setState(() {
-                            _selectedIdentityDoc = value;
-                            _clearIdentityDocumentControllers();
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _selectedIdentityController,
-                        label: _selectedIdentityLabel,
-                        icon: Icons.badge_outlined,
-                        keyboardType: _selectedIdentityKeyboardType,
-                        textCapitalization: _selectedIdentityCapitalization,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-                _SectionCard(
-                  title: 'Address Details',
-                  isExpanded: _addressExpanded,
-                  onToggle: () {
-                    setState(() {
-                      _addressExpanded = !_addressExpanded;
-                    });
-                  },
-                  child: Column(
-                    children: [
-                      if (_loadingAreas)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 16),
-                          child: Center(
-                            child: SizedBox(
-                              height: 18,
-                              width: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2.5,
-                              ),
-                            ),
-                          ),
-                        )
-                      else if (_areaOptions.isEmpty)
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(14),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: AppColors.borderGrey),
-                          ),
-                          child: const Text(
-                            'No area available',
-                            style: TextStyle(
-                              color: AppColors.textGrey,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        )
-                      else
-                        _DropdownField<String>(
-                          value: _selectedArea,
-                          hintText: 'Select Area',
-                          items: _areaOptions
-                              .map((area) => area.areaName)
-                              .toList(),
-                          icon: Icons.place_outlined,
-                          isRequired: true,
-                          validator: (value) {
-                            if (value == null || value.isEmpty) {
-                              return 'Area is required';
-                            }
-                            return null;
-                          },
-                          onChanged: (value) {
-                            setState(() {
-                              _selectedArea = value;
-                            });
-                          },
-                        ),
 
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _flatBuildingController,
-                        label: 'Flat/Building',
-                        icon: Icons.apartment_rounded,
-                        isRequired: true,
-                        validator: (value) => _requiredValidator(
-                          value,
-                          'Flat/Building is required',
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _streetController,
-                        label: 'Street/Avenue',
-                        icon: Icons.signpost_outlined,
-                      ),
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _cityController,
-                        label: 'City',
-                        icon: Icons.location_city_rounded,
-                        isRequired: true,
-                        validator: (value) =>
-                            _requiredValidator(value, 'City is required'),
-                      ),
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _pincodeController,
-                        label: 'Pincode',
-                        icon: Icons.markunread_mailbox_rounded,
-                        isRequired: true,
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          final String? error = _requiredValidator(
-                            value,
-                            'Pincode is required',
-                          );
-                          if (error != null) {
-                            return error;
-                          }
-                          if ((value ?? '').trim().length < 6) {
-                            return 'Enter a valid pincode';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _districtController,
-                        label: 'District',
-                        icon: Icons.location_on_outlined,
-                        isRequired: true,
-                        validator: (value) =>
-                            _requiredValidator(value, 'District is required'),
-                      ),
-                      const SizedBox(height: 16),
-                      _DropdownField<String>(
-                        value: _selectedState,
-                        items: _states,
-                        icon: Icons.map_outlined,
-                        onChanged: (value) {
-                          setState(() {
-                            _selectedState = value;
-                          });
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      // Organization removed from UI; backend receives empty string
-                      const SizedBox(height: 0),
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _addressController,
-                        label: 'Address',
-                        icon: Icons.home_rounded,
-                      ),
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _mobileController,
-                        label: 'Mobile',
-                        icon: Icons.phone_android_rounded,
-                        isRequired: true,
-                        keyboardType: TextInputType.phone,
-                        validator: (value) {
-                          final String? error = _requiredValidator(
-                            value,
-                            'Mobile number is required',
-                          );
-                          if (error != null) {
-                            return error;
-                          }
-                          if ((value ?? '').trim().length < 10) {
-                            return 'Enter a valid mobile number';
-                          }
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _whatsAppController,
-                        label: 'WhatsApp No',
-                        icon: Icons.message_outlined,
-                        keyboardType: TextInputType.phone,
-                      ),
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _emailController,
-                        label: 'Email',
-                        icon: Icons.email_outlined,
-                        keyboardType: TextInputType.emailAddress,
-                        validator: (value) {
-                          final String input = (value ?? '').trim();
-                          if (input.isEmpty) {
-                            return null;
-                          }
-                          final bool isValid = RegExp(
-                            r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
-                          ).hasMatch(input);
-                          return isValid ? null : 'Enter a valid email';
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 18),
-                _SectionCard(
-                  title: 'Dependent Details',
-                  isExpanded: _dependentsExpanded,
-                  onToggle: () {
-                    setState(() {
-                      _dependentsExpanded = !_dependentsExpanded;
-                    });
-                  },
-                  child: Column(
-                    children: [
-                      _StyledTextField(
-                        controller: _dependentNameController,
-                        label: 'Dependent Name',
-                        icon: Icons.person_outline_rounded,
-                      ),
-                      const SizedBox(height: 16),
-                      _StyledTextField(
-                        controller: _dependentRelationshipController,
-                        label: 'Relationship To Donor',
-                        icon: Icons.family_restroom_outlined,
-                      ),
-                      const SizedBox(height: 16),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _StyledTextField(
-                              controller: _dependentBirthDateController,
-                              label: 'Birth Date',
-                              icon: Icons.cake_outlined,
-                              readOnly: true,
-                              onTap: () =>
-                                  _pickDate(_dependentBirthDateController),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _flatBuildingController,
+                            label: 'Flat/Building',
+                            icon: Icons.apartment_rounded,
+                            isRequired: true,
+                            validator: (value) => _requiredValidator(
+                              value,
+                              'Flat/Building is required',
                             ),
                           ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: _StyledTextField(
-                              controller: _dependentAgeController,
-                              label: 'Age',
-                              icon: Icons.numbers_rounded,
-                              keyboardType: TextInputType.number,
-                              textCapitalization: TextCapitalization.none,
-                            ),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _streetController,
+                            label: 'Street/Avenue',
+                            icon: Icons.signpost_outlined,
+                          ),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _cityController,
+                            label: 'City',
+                            icon: Icons.location_city_rounded,
+                            isRequired: true,
+                            validator: (value) =>
+                                _requiredValidator(value, 'City is required'),
+                          ),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _pincodeController,
+                            label: 'Pincode',
+                            icon: Icons.markunread_mailbox_rounded,
+                            isRequired: true,
+                            keyboardType: TextInputType.number,
+                            validator: (value) {
+                              final String? error = _requiredValidator(
+                                value,
+                                'Pincode is required',
+                              );
+                              if (error != null) {
+                                return error;
+                              }
+                              if ((value ?? '').trim().length < 6) {
+                                return 'Enter a valid pincode';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _districtController,
+                            label: 'District',
+                            icon: Icons.location_on_outlined,
+                            isRequired: true,
+                            validator: (value) => _requiredValidator(
+                                value, 'District is required'),
+                          ),
+                          const SizedBox(height: 16),
+                          _DropdownField<String>(
+                            value: _selectedState,
+                            items: _states,
+                            icon: Icons.map_outlined,
+                            hintText: 'State',
+                            isRequired: true,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'State is required';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedState = value;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          // Organization removed from UI; backend receives empty string
+                          const SizedBox(height: 0),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _addressController,
+                            label: 'Address',
+                            icon: Icons.home_rounded,
+                          ),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _mobileController,
+                            label: 'Mobile',
+                            icon: Icons.phone_android_rounded,
+                            isRequired: true,
+                            keyboardType: TextInputType.phone,
+                            validator: (value) {
+                              final String? error = _requiredValidator(
+                                value,
+                                'Mobile number is required',
+                              );
+                              if (error != null) {
+                                return error;
+                              }
+                              if ((value ?? '').trim().length < 10) {
+                                return 'Enter a valid mobile number';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _whatsAppController,
+                            label: 'WhatsApp No',
+                            icon: Icons.message_outlined,
+                            keyboardType: TextInputType.phone,
+                          ),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _emailController,
+                            label: 'Email',
+                            icon: Icons.email_outlined,
+                            keyboardType: TextInputType.emailAddress,
+                            validator: (value) {
+                              final String input = (value ?? '').trim();
+                              if (input.isEmpty) {
+                                return null;
+                              }
+                              final bool isValid = RegExp(
+                                r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
+                              ).hasMatch(input);
+                              return isValid ? null : 'Enter a valid email';
+                            },
                           ),
                         ],
                       ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: ElevatedButton.icon(
-                          onPressed: _addDependentDraft,
-                          icon: const Icon(Icons.add_rounded),
-                          label: const Text('Add Dependent'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.statusBarPink,
-                            foregroundColor: Colors.white,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(14),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
+                IgnorePointer(
+                  ignoring: !_hasSelectedDonorType,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: _hasSelectedDonorType ? 1 : 0.45,
+                    child: _SectionCard(
+                      title: 'Dependent Details',
+                      isExpanded: _dependentsExpanded,
+                      onToggle: () {
+                        if (!_hasSelectedDonorType) return;
+                        setState(() {
+                          _dependentsExpanded = !_dependentsExpanded;
+                        });
+                      },
+                      child: Column(
+                        children: [
+                          _StyledTextField(
+                            controller: _dependentNameController,
+                            label: 'Dependent Name',
+                            icon: Icons.person_outline_rounded,
+                          ),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _dependentRelationshipController,
+                            label: 'Relationship To Donor',
+                            icon: Icons.family_restroom_outlined,
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: _StyledTextField(
+                                  controller: _dependentBirthDateController,
+                                  label: 'Birth Date',
+                                  icon: Icons.cake_outlined,
+                                  readOnly: true,
+                                  onTap: () =>
+                                      _pickDate(_dependentBirthDateController),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: _StyledTextField(
+                                  controller: _dependentAgeController,
+                                  label: 'Age',
+                                  icon: Icons.numbers_rounded,
+                                  keyboardType: TextInputType.number,
+                                  textCapitalization: TextCapitalization.none,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          Align(
+                            alignment: Alignment.centerRight,
+                            child: ElevatedButton.icon(
+                              onPressed: _addDependentDraft,
+                              icon: const Icon(Icons.add_rounded),
+                              label: const Text('Add Dependent'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.statusBarPink,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
+                          if (_dependents.isNotEmpty) ...[
+                            const SizedBox(height: 14),
+                            ...List.generate(
+                              _dependents.length,
+                              (index) => _DependentTile(
+                                dependent: _dependents[index],
+                                onRemove: () => _removeDependentAt(index),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
-                      if (_dependents.isNotEmpty) ...[
-                        const SizedBox(height: 14),
-                        ...List.generate(
-                          _dependents.length,
-                          (index) => _DependentTile(
-                            dependent: _dependents[index],
-                            onRemove: () => _removeDependentAt(index),
-                          ),
-                        ),
-                      ],
-                    ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -1260,7 +1341,7 @@ class _DropdownField<T> extends StatelessWidget {
       value: value,
       validator: validator,
       decoration: _fieldDecoration(
-        label: hintText ?? '',
+        label: value == null ? '' : hintText ?? '',
         icon: icon,
         isRequired: isRequired,
       ),
@@ -1298,15 +1379,15 @@ class _DropdownField<T> extends StatelessWidget {
 class _ChoiceGroup extends StatelessWidget {
   const _ChoiceGroup({
     required this.label,
-    required this.value,
     required this.options,
-    required this.onChanged,
+    this.value,
+    this.onChanged,
   });
 
   final String label;
-  final String value;
+  final String? value;
   final List<String> options;
-  final ValueChanged<String> onChanged;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1335,28 +1416,152 @@ class _ChoiceGroup extends StatelessWidget {
             children: options
                 .map(
                   (option) => SizedBox(
-                    width: 150,
-                    child: RadioListTile<String>(
-                      value: option,
-                      groupValue: value,
-                      contentPadding: EdgeInsets.zero,
-                      visualDensity: VisualDensity.compact,
-                      activeColor: AppColors.statusBarPink,
-                      title: Text(
-                        option,
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                    width: 170,
+                    child: Material(
+                      color: Colors.transparent,
+                      child: RadioListTile<String>(
+                        value: option,
+                        groupValue: value,
+                        contentPadding: EdgeInsets.zero,
+                        visualDensity: VisualDensity.compact,
+                        activeColor: AppColors.statusBarPink,
+                        title: Text(
+                          option,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
+                        onChanged: (selected) {
+                          if (selected != null && onChanged != null) {
+                            onChanged!.call(selected);
+                          }
+                        },
                       ),
-                      onChanged: (selected) {
-                        if (selected != null) {
-                          onChanged(selected);
-                        }
-                      },
                     ),
                   ),
                 )
                 .toList(),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DonorTypeSelector extends StatelessWidget {
+  const _DonorTypeSelector({
+    required this.value,
+    required this.onChanged,
+  });
+
+  final int? value;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderGrey),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Donor Type *',
+            style: TextStyle(
+              color: AppColors.textGrey,
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          Row(
+            children: [
+              Expanded(
+                child: _DonorTypeOption(
+                  label: 'Individual',
+                  selected: value == 1,
+                  onTap: () => onChanged(1),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _DonorTypeOption(
+                  label: 'Others',
+                  selected: value == 2,
+                  onTap: () => onChanged(2),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DonorTypeOption extends StatelessWidget {
+  const _DonorTypeOption({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(14),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 24,
+              height: 24,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: selected
+                      ? AppColors.statusBarPink
+                      : AppColors.textGrey.withValues(alpha: 0.7),
+                  width: 2,
+                ),
+              ),
+              child: selected
+                  ? Center(
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: const BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppColors.statusBarPink,
+                        ),
+                      ),
+                    )
+                  : null,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.textDark,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

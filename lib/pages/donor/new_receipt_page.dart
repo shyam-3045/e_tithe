@@ -10,6 +10,7 @@ import '../../common/services/payment_mode_service.dart';
 import '../../common/services/receipt_service.dart';
 import '../../common/services/user_service.dart';
 import '../../common/widgets/common_alert.dart';
+import 'receipt_submission_success_page.dart';
 
 class NewReceiptPage extends StatefulWidget {
   const NewReceiptPage({
@@ -1402,12 +1403,11 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Receipt added successfully.')),
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute<void>(
+          builder: (_) => const ReceiptSubmissionSuccessPage(),
+        ),
       );
-
-      Navigator.of(context).pop();
-      Navigator.of(context).pop();
     } catch (error) {
       if (!mounted) return;
       await CommonAlert.showInfo(

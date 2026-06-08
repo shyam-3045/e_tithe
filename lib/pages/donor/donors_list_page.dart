@@ -50,8 +50,8 @@ class _DonorsListPageState extends State<DonorsListPage> {
       final String apiUrl =
           '/api/Donor/gerdonorsbyusertypeanduserid?usertype=${userData.userTypeName}&userid=${userData.userID}';
       final Uri uri = ApiConfig.uri(apiUrl);
-      final Map<String, String> headers = await AuthService.instance
-          .authenticatedJsonHeaders();
+      final Map<String, String> headers =
+          await AuthService.instance.authenticatedJsonHeaders();
 
       print('[DonorsListPage] URL: $uri');
 
@@ -265,8 +265,7 @@ class _DonorListItem {
       donorId: _parseInt(
         json['donorId'] ?? json['donorID'] ?? json['id'] ?? json['ID'],
       ),
-      name:
-          json['donorName']?.toString() ??
+      name: json['donorName']?.toString() ??
           json['name']?.toString() ??
           'Unknown',
       membership: json['membership']?.toString() ?? 'Member',
@@ -338,13 +337,12 @@ class _DonorListItem {
     return value
         .whereType<Map<String, dynamic>>()
         .map((entry) {
-          final String name =
-              (entry['relationName'] ??
-                      entry['dependentName'] ??
-                      entry['name'] ??
-                      '')
-                  .toString()
-                  .trim();
+          final String name = (entry['relationName'] ??
+                  entry['dependentName'] ??
+                  entry['name'] ??
+                  '')
+              .toString()
+              .trim();
           final String relation =
               (entry['relationshipToDonor'] ?? entry['relation'] ?? '')
                   .toString()
@@ -643,7 +641,7 @@ class _Avatar extends StatelessWidget {
     return '$first$second';
   }
 
-  ImageProvider? _getImageProvider() {
+  MemoryImage? _getMemoryImage() {
     if (photoBase64 != null && photoBase64!.isNotEmpty) {
       try {
         String base64Data = photoBase64!;
@@ -656,26 +654,46 @@ class _Avatar extends StatelessWidget {
         return null;
       }
     }
-
-    if (avatarUrl != null && avatarUrl!.isNotEmpty) {
-      return NetworkImage(avatarUrl!);
-    }
-
     return null;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return CircleAvatar(
-      radius: 38,
-      backgroundColor: AppColors.lavender,
-      foregroundImage: _getImageProvider(),
+  Widget _buildFallback() {
+    return Center(
       child: Text(
         _initials,
         style: const TextStyle(
           color: AppColors.primaryPurple,
           fontSize: 22,
           fontWeight: FontWeight.w800,
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final MemoryImage? memoryImage = _getMemoryImage();
+
+    return CircleAvatar(
+      radius: 38,
+      backgroundColor: AppColors.lavender,
+      child: ClipOval(
+        child: SizedBox(
+          width: 76,
+          height: 76,
+          child: memoryImage != null
+              ? Image(
+                  image: memoryImage,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _buildFallback(),
+                )
+              : (avatarUrl != null && avatarUrl!.isNotEmpty)
+                  ? Image.network(
+                      avatarUrl!,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => _buildFallback(),
+                    )
+                  : _buildFallback(),
         ),
       ),
     );

@@ -12,6 +12,7 @@ import '../../common/models/user_data.dart';
 import '../../common/services/agent_area_service.dart';
 import '../../common/services/auth_service.dart';
 import '../../common/widgets/common_alert.dart';
+import 'donor_creation_success_page.dart';
 
 class NewDonorPage extends StatefulWidget {
   const NewDonorPage({super.key});
@@ -652,8 +653,10 @@ class _NewDonorPageState extends State<NewDonorPage> {
           }
         }
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Donor saved successfully.')),
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute<void>(
+            builder: (_) => const DonorCreationSuccessPage(),
+          ),
         );
         return;
       }

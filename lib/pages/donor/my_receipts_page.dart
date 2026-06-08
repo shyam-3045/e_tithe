@@ -43,15 +43,7 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
   String _donorSearchQuery = '';
 
   String _toApiRepType(String userTypeName) {
-    final String normalized = userTypeName.trim();
-    if (normalized.isEmpty) return '';
-
-    final String lower = normalized.toLowerCase();
-    if (lower.contains('local') && lower.contains('member')) {
-      return 'LocalUnit';
-    }
-
-    return normalized;
+    return userTypeName.trim();
   }
 
   List<_ReceiptItem> get _filteredReceipts {

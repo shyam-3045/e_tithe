@@ -354,15 +354,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
   }
 
   String _toApiUserType(String userTypeName) {
-    final String normalized = userTypeName.trim();
-    if (normalized.isEmpty) return '';
-
-    final String lower = normalized.toLowerCase();
-    if (lower.contains('local') && lower.contains('member')) {
-      return 'localUnit';
-    }
-
-    return normalized;
+    return userTypeName.trim();
   }
 
   void _addDependentDraft() {

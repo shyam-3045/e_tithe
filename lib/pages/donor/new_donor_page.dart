@@ -300,21 +300,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
     return '$y-$m-$d';
   }
 
-  String _toCamelCase(String str) {
-    if (str.isEmpty) return '';
-    return str[0].toLowerCase() + str.substring(1);
-  }
-
   String _toApiUserType(String userTypeName) {
-    final String normalized = userTypeName.trim();
-    if (normalized.isEmpty) return '';
-
-    final String lower = normalized.toLowerCase();
-    if (lower.contains('local') && lower.contains('member')) {
-      return 'localUnit';
-    }
-
-    return _toCamelCase(normalized);
+    return userTypeName.trim();
   }
 
   void _clearIdentityDocumentControllers() {

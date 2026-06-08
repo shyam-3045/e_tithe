@@ -26,15 +26,7 @@ class _DonorsListPageState extends State<DonorsListPage> {
   late Future<List<_DonorListItem>> _donorsFuture;
 
   String _toApiUserType(String userTypeName) {
-    final String normalized = userTypeName.trim();
-    if (normalized.isEmpty) return '';
-
-    final String lower = normalized.toLowerCase();
-    if (lower.contains('local') && lower.contains('member')) {
-      return 'LocalUnit';
-    }
-
-    return normalized;
+    return userTypeName.trim();
   }
 
   @override

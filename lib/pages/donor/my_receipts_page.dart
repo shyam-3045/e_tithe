@@ -9,6 +9,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../common/constants/app_colors.dart';
+import '../../common/models/user_data.dart';
+import '../../common/services/auth_service.dart';
 import '../../common/services/receipt_export_service.dart';
 import '../../common/services/receipt_service.dart';
 import '../../common/widgets/common_alert.dart';
@@ -39,6 +41,7 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
   _ReceiptPayFilter _payFilter = _ReceiptPayFilter.all;
   DateTime? _fromDate;
   DateTime? _toDate;
+  DateTime _selectedReceiptDate = DateTime.now();
 
   List<_ReceiptItem> get _filteredReceipts {
     Iterable<_ReceiptItem> items = _allReceipts;
@@ -96,8 +99,23 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
 
   Future<void> _loadReceipts() async {
     try {
-      final List<ReceiptRecord> receipts = await ReceiptService.instance
-          .fetchReceipts();
+      final UserData? userData = await AuthService.instance.currentUserData();
+      if (userData == null) {
+        throw Exception('User data not found. Please login again.');
+      }
+
+      final String repType = userData.userTypeName.trim();
+      final int repId = userData.userID;
+      if (repType.isEmpty || repId <= 0) {
+        throw Exception('User type or user ID is missing. Please login again.');
+      }
+
+      final List<ReceiptRecord> receipts =
+          await ReceiptService.instance.fetchReceipts(
+        repType: repType,
+        repId: repId,
+        receiptDate: _selectedReceiptDate,
+      );
       if (!mounted) return;
 
       setState(() {
@@ -168,6 +186,97 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
     _loadReceipts();
   }
 
+  Future<void> _pickReceiptDate() async {
+    final DateTime now = DateTime.now();
+    final DateTime initial = _selectedReceiptDate;
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(now.year + 1),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primaryPurple,
+              onPrimary: Colors.white,
+              surface: AppColors.surface,
+              onSurface: AppColors.textDark,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked == null) return;
+
+    setState(() {
+      _selectedReceiptDate = picked;
+      _isLoading = true;
+      _loadError = null;
+    });
+    _loadReceipts();
+  }
+
+  Widget _buildReceiptDatePicker() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: _pickReceiptDate,
+        child: Ink(
+          padding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 14,
+          ),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borderGrey),
+          ),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.calendar_month_rounded,
+                color: AppColors.primaryPurple,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Receipt Date',
+                      style: TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatDate(_selectedReceiptDate),
+                      style: const TextStyle(
+                        color: AppColors.textDark,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.keyboard_arrow_down_rounded,
+                color: AppColors.textGrey,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _openReceipt(_ReceiptItem item) {
     final GlobalKey captureKey = GlobalKey();
 
@@ -185,14 +294,16 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
               ),
             );
           },
-          onShare: (fundDetails) => _shareReceiptImage(item, captureKey, fundDetails),
+          onShare: (fundDetails) =>
+              _shareReceiptImage(item, captureKey, fundDetails),
           onMessage: (fundDetails) => _shareReceiptMessage(item, fundDetails),
         ),
       ),
     );
   }
 
-  ReceiptExportData _toExportData(_ReceiptItem item, List<ReceiptFundDetail> fundDetails) {
+  ReceiptExportData _toExportData(
+      _ReceiptItem item, List<ReceiptFundDetail> fundDetails) {
     return ReceiptExportData(
       receiptId: item.receiptId,
       receiptNo: item.receiptNo,
@@ -334,7 +445,8 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
     }
   }
 
-  Future<void> _shareReceiptMessage(_ReceiptItem item, List<ReceiptFundDetail> fundDetails) async {
+  Future<void> _shareReceiptMessage(
+      _ReceiptItem item, List<ReceiptFundDetail> fundDetails) async {
     try {
       final ReceiptExportData data = _toExportData(item, fundDetails);
       await Share.share(_receiptExportService.buildShareText(data));
@@ -351,6 +463,8 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
   @override
   Widget build(BuildContext context) {
     final List<_ReceiptItem> receipts = _filteredReceipts;
+    final bool showTotalBar =
+        !_isLoading && _loadError == null && receipts.isNotEmpty;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -373,32 +487,36 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              color: const Color(0xFFE7E7E7),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              child: Row(
-                children: [
-                  const Text(
-                    'TOTAL',
-                    style: TextStyle(
-                      color: AppColors.textGrey,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.3,
+            if (showTotalBar)
+              Container(
+                color: const Color(0xFFE7E7E7),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 10,
+                ),
+                child: Row(
+                  children: [
+                    const Text(
+                      'TOTAL',
+                      style: TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 0.3,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    '₹ ${_formatMoney(_totalAmount)}',
-                    style: const TextStyle(
-                      color: AppColors.textGrey,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w900,
+                    const Spacer(),
+                    Text(
+                      '₹ ${_formatMoney(_totalAmount)}',
+                      style: const TextStyle(
+                        color: AppColors.textGrey,
+                        fontSize: 20,
+                        fontWeight: FontWeight.w900,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
             _ReceiptListBottomBar(
               onFilter: _openFilterDialog,
               onReset: _resetFilters,
@@ -410,59 +528,68 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
       body: SafeArea(
         child: _isLoading
             ? const Center(child: CircularProgressIndicator())
-            : _loadError != null
-            ? Center(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      const Icon(
-                        Icons.error_outline_rounded,
-                        size: 48,
-                        color: AppColors.textGrey,
-                      ),
-                      const SizedBox(height: 12),
-                      Text(
-                        _loadError!,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.textGrey,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      FilledButton(
-                        onPressed: _refreshReceipts,
-                        child: const Text('Try Again'),
-                      ),
-                    ],
+            : Column(
+                children: [
+                  _buildReceiptDatePicker(),
+                  Expanded(
+                    child: _loadError != null
+                        ? Center(
+                            child: Padding(
+                              padding: const EdgeInsets.all(20),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  const Icon(
+                                    Icons.error_outline_rounded,
+                                    size: 48,
+                                    color: AppColors.textGrey,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    _loadError!,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      color: AppColors.textGrey,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  FilledButton(
+                                    onPressed: _refreshReceipts,
+                                    child: const Text('Try Again'),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          )
+                        : receipts.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'No receipts found',
+                                  style: TextStyle(
+                                    color: AppColors.textGrey.withOpacity(0.85),
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              )
+                            : ListView.separated(
+                                padding:
+                                    const EdgeInsets.fromLTRB(14, 4, 14, 16),
+                                itemCount: receipts.length,
+                                separatorBuilder: (_, __) =>
+                                    const SizedBox(height: 14),
+                                itemBuilder: (context, index) {
+                                  final _ReceiptItem item = receipts[index];
+                                  return _ReceiptCard(
+                                    item: item,
+                                    receiptGreen: _receiptGreen,
+                                    onTap: () => _openReceipt(item),
+                                  );
+                                },
+                              ),
                   ),
-                ),
-              )
-            : receipts.isEmpty
-            ? Center(
-                child: Text(
-                  'No receipts found',
-                  style: TextStyle(
-                    color: AppColors.textGrey.withOpacity(0.85),
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              )
-            : ListView.separated(
-                padding: const EdgeInsets.fromLTRB(14, 14, 14, 16),
-                itemCount: receipts.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 14),
-                itemBuilder: (context, index) {
-                  final _ReceiptItem item = receipts[index];
-                  return _ReceiptCard(
-                    item: item,
-                    receiptGreen: _receiptGreen,
-                    onTap: () => _openReceipt(item),
-                  );
-                },
+                ],
               ),
       ),
     );
@@ -547,9 +674,8 @@ class _ReceiptCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color headerColor = item.isCancelled
-        ? AppColors.textGrey.withOpacity(0.65)
-        : receiptGreen;
+    final Color headerColor =
+        item.isCancelled ? AppColors.textGrey.withOpacity(0.65) : receiptGreen;
 
     return Material(
       color: AppColors.surface,
@@ -1189,7 +1315,8 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
 
   Future<void> _loadFundDetails() async {
     try {
-      final details = await ReceiptService.instance.fetchReceiptFundDetails(widget.receipt.receiptId);
+      final details = await ReceiptService.instance
+          .fetchReceiptFundDetails(widget.receipt.receiptId);
       if (mounted) {
         setState(() {
           _fundDetails = details;
@@ -1445,14 +1572,17 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
                                       width: 20,
                                       child: CircularProgressIndicator(
                                         strokeWidth: 2,
-                                        valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
+                                        valueColor:
+                                            AlwaysStoppedAnimation<Color>(
+                                                AppColors.primaryPurple),
                                       ),
                                     ),
                                   ),
                                 )
                               else
                                 ..._displayDetails.map((detail) => Padding(
-                                      padding: const EdgeInsets.symmetric(vertical: 4),
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 4),
                                       child: Row(
                                         children: [
                                           Expanded(

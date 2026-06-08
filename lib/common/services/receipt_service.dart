@@ -65,8 +65,7 @@ class ReceiptRecord {
         json['fundType'] ?? json['particulars'] ?? json['purpose'],
         fallback: 'General Donation',
       ),
-      isCancelled:
-          _parseBool(
+      isCancelled: _parseBool(
             json['isCancelled'] ?? json['cancelled'] ?? json['isActive'],
           ) ??
           false,
@@ -195,7 +194,8 @@ class ReceiptFundDetail {
       companyAddress: _string(json['companyAddress']),
       email: _string(json['email']),
       mobile: _string(json['mobile']),
-      fundName: _string(json['fundName'] ?? json['fundType'] ?? json['particulars']),
+      fundName:
+          _string(json['fundName'] ?? json['fundType'] ?? json['particulars']),
       amount: _parseDouble(json['amount']),
     );
   }
@@ -242,17 +242,16 @@ class ReceiptService {
         'ReceiptDate': receiptDate,
       },
     );
-    final Map<String, String> headers = await AuthService.instance
-        .authenticatedJsonHeaders();
+    final Map<String, String> headers =
+        await AuthService.instance.authenticatedJsonHeaders();
 
     final http.Response response = await _client.get(uri, headers: headers);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       final String message =
           _extractErrorMessage(response.body) ?? response.body.trim();
-      final String suffix = message.isEmpty
-          ? 'Status ${response.statusCode}'
-          : message;
+      final String suffix =
+          message.isEmpty ? 'Status ${response.statusCode}' : message;
       throw Exception('Failed to generate receipt number. $suffix');
     }
 
@@ -288,8 +287,8 @@ class ReceiptService {
     required Map<String, dynamic> payload,
   }) async {
     final Uri uri = ApiConfig.uri(ApiEndpoints.receipt);
-    final Map<String, String> headers = await AuthService.instance
-        .authenticatedJsonHeaders();
+    final Map<String, String> headers =
+        await AuthService.instance.authenticatedJsonHeaders();
 
     final Map<String, dynamic> requestBody = <String, dynamic>{
       'receiptDto': payload,
@@ -327,10 +326,21 @@ class ReceiptService {
     return <String, dynamic>{'data': decoded};
   }
 
-  Future<List<ReceiptRecord>> fetchReceipts() async {
-    final Uri uri = ApiConfig.uri(ApiEndpoints.receipt);
-    final Map<String, String> headers = await AuthService.instance
-        .authenticatedJsonHeaders();
+  Future<List<ReceiptRecord>> fetchReceipts({
+    required String repType,
+    required int repId,
+    required DateTime receiptDate,
+  }) async {
+    final Uri uri =
+        ApiConfig.uri(ApiEndpoints.receiptByRepTypeRepIdAndReceiptDate).replace(
+      queryParameters: <String, String>{
+        'repType': repType,
+        'repId': repId.toString(),
+        'receiptDate': _toApiDate(receiptDate),
+      },
+    );
+    final Map<String, String> headers =
+        await AuthService.instance.authenticatedJsonHeaders();
 
     print('[API] URL: $uri');
     print('[API] Payload: N/A');
@@ -351,14 +361,22 @@ class ReceiptService {
         .toList();
   }
 
+  String _toApiDate(DateTime value) {
+    final String yyyy = value.year.toString().padLeft(4, '0');
+    final String mm = value.month.toString().padLeft(2, '0');
+    final String dd = value.day.toString().padLeft(2, '0');
+    return '$yyyy-$mm-$dd';
+  }
+
   Future<List<ReceiptFundDetail>> fetchReceiptFundDetails(int receiptId) async {
-    final Uri uri = ApiConfig.uri('/api/Receipt/GetReceiptFundDetailsByReceiptId').replace(
+    final Uri uri =
+        ApiConfig.uri('/api/Receipt/GetReceiptFundDetailsByReceiptId').replace(
       queryParameters: <String, String>{
         'receiptId': receiptId.toString(),
       },
     );
-    final Map<String, String> headers = await AuthService.instance
-        .authenticatedJsonHeaders();
+    final Map<String, String> headers =
+        await AuthService.instance.authenticatedJsonHeaders();
 
     print('[API] URL: $uri');
 

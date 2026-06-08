@@ -103,8 +103,8 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     });
 
     try {
-      final List<PaymentModeInfo> modes = await PaymentModeService.instance
-          .fetchPaymentModes();
+      final List<PaymentModeInfo> modes =
+          await PaymentModeService.instance.fetchPaymentModes();
       if (!mounted) return;
 
       setState(() {
@@ -154,8 +154,8 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     });
 
     try {
-      final List<CompanyInfo> companies = await CompanyService.instance
-          .fetchCompanies();
+      final List<CompanyInfo> companies =
+          await CompanyService.instance.fetchCompanies();
       if (!mounted) return;
 
       setState(() {
@@ -209,9 +209,8 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
     }
 
     final Set<int> takenFundIds = _payments.map((e) => e.fundId).toSet();
-    final List<FundInfo> availableFunds = _funds
-        .where((f) => !takenFundIds.contains(f.fundId))
-        .toList();
+    final List<FundInfo> availableFunds =
+        _funds.where((f) => !takenFundIds.contains(f.fundId)).toList();
 
     if (availableFunds.isEmpty) {
       await CommonAlert.showInfo(
@@ -237,14 +236,14 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
 
     final _ReceiptPaymentEntry? created =
         await showDialog<_ReceiptPaymentEntry>(
-          context: context,
-          barrierDismissible: false,
-          builder: (context) => _AmountDetailDialog(
-            funds: _funds,
-            takenFundIds: takenFundIds,
-            paymentModes: _paymentModes,
-          ),
-        );
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => _AmountDetailDialog(
+        funds: _funds,
+        takenFundIds: takenFundIds,
+        paymentModes: _paymentModes,
+      ),
+    );
 
     if (created == null) return;
 
@@ -958,12 +957,11 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
         .toList();
 
     final FundInfo? preferred = available.cast<FundInfo?>().firstWhere(
-      (fund) => (fund?.fundName ?? '').toLowerCase() == 'general donation',
-      orElse: () => null,
-    );
+          (fund) => (fund?.fundName ?? '').toLowerCase() == 'general donation',
+          orElse: () => null,
+        );
 
-    _selectedFund =
-        preferred ??
+    _selectedFund = preferred ??
         (available.isNotEmpty
             ? available.first
             : const FundInfo(fundId: 0, fundName: 'General Donation'));
@@ -1237,6 +1235,12 @@ class _ReceiptSignaturePage extends StatefulWidget {
 class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
   bool _isSubmitting = false;
 
+  String _normalizeRepType(String userTypeName) {
+    final String trimmed = userTypeName.trim();
+    if (trimmed.isEmpty) return '';
+    return trimmed[0].toLowerCase() + trimmed.substring(1);
+  }
+
   String _dateOnly(DateTime dateTime) {
     final DateTime local = dateTime.toLocal();
     final String month = local.month.toString().padLeft(2, '0');
@@ -1274,6 +1278,8 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
 
   Future<Map<String, dynamic>> _buildReceiptPayload() async {
     final UserDetails user = await _resolveCurrentUser();
+    final UserData? cachedUserData =
+        await AuthService.instance.currentUserData();
     final DonorDetails donor = await DonorService.instance.fetchDonorById(
       widget.donorId,
     );
@@ -1295,7 +1301,8 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
       receiptDate: _dateOnly(now),
     );
     final String regionName = regionId.toString();
-    final String repType = user.userTypeId.toString();
+    final String repType =
+        _normalizeRepType(cachedUserData?.userTypeName ?? '');
     final String repName = user.userName;
     const int receiptId = 0;
 

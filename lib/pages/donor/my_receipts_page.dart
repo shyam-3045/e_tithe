@@ -28,6 +28,7 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
   static const Color _receiptGreen = Color(0xFF09A83A);
   final ReceiptExportService _receiptExportService =
       ReceiptExportService.instance;
+  final TextEditingController _donorSearchController = TextEditingController();
   bool _isReceiptActionRunning = false;
 
   List<_ReceiptItem> _allReceipts = <_ReceiptItem>[];
@@ -39,11 +40,14 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
   DateTime? _fromDate;
   DateTime? _toDate;
   DateTime _selectedReceiptDate = DateTime.now();
+  String _donorSearchQuery = '';
 
   List<_ReceiptItem> get _filteredReceipts {
     Iterable<_ReceiptItem> items = _allReceipts;
 
-    final String donor = (widget.donorName ?? '').trim();
+    final String donor = _donorSearchQuery.isNotEmpty
+        ? _donorSearchQuery
+        : (widget.donorName ?? '').trim();
     if (donor.isNotEmpty) {
       items = items.where(
         (r) => r.donorDisplayName.toLowerCase().contains(donor.toLowerCase()),
@@ -91,7 +95,15 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
   @override
   void initState() {
     super.initState();
+    _donorSearchQuery = (widget.donorName ?? '').trim();
+    _donorSearchController.text = _donorSearchQuery;
     _loadReceipts();
+  }
+
+  @override
+  void dispose() {
+    _donorSearchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadReceipts() async {
@@ -208,10 +220,12 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
 
     if (picked == null) return;
 
+    _donorSearchController.clear();
     setState(() {
       _selectedReceiptDate = picked;
       _isLoading = true;
       _loadError = null;
+      _donorSearchQuery = '';
     });
     _loadReceipts();
   }
@@ -268,6 +282,59 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
                 color: AppColors.textGrey,
               ),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDonorSearchField() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
+      child: TextField(
+        controller: _donorSearchController,
+        onChanged: (value) {
+          setState(() {
+            _donorSearchQuery = value.trim();
+          });
+        },
+        decoration: InputDecoration(
+          hintText: 'Search by donor name',
+          prefixIcon: const Icon(
+            Icons.person_search_rounded,
+            color: AppColors.primaryPurple,
+          ),
+          suffixIcon: _donorSearchController.text.trim().isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear',
+                  onPressed: () {
+                    _donorSearchController.clear();
+                    setState(() {
+                      _donorSearchQuery = '';
+                    });
+                  },
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    color: AppColors.textGrey,
+                  ),
+                ),
+          filled: true,
+          fillColor: AppColors.surface,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: AppColors.borderGrey),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: AppColors.borderGrey),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(
+              color: AppColors.primaryPurple,
+              width: 1.4,
+            ),
           ),
         ),
       ),
@@ -494,6 +561,7 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
             : Column(
                 children: [
                   _buildReceiptDatePicker(),
+                  _buildDonorSearchField(),
                   Expanded(
                     child: _loadError != null
                         ? Center(

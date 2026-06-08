@@ -705,142 +705,90 @@ class _ReceiptCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Color headerColor =
-        item.isCancelled ? AppColors.textGrey.withOpacity(0.65) : receiptGreen;
+    final Color modeColor =
+        item.isCancelled ? AppColors.textGrey : receiptGreen;
 
     return Material(
       color: AppColors.surface,
-      elevation: 2,
+      elevation: 1.5,
       shadowColor: const Color(0x14000000),
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(16),
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppColors.borderGrey),
           ),
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
           child: Column(
             children: [
-              Container(
-                height: 46,
-                decoration: BoxDecoration(
-                  color: headerColor,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
-                ),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                child: Row(
-                  children: [
-                    Text(
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
                       item.receiptNo,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.4,
-                      ),
-                    ),
-                    const Spacer(),
-                    Text(
-                      _formatDate(item.date),
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-                child: Column(
-                  children: [
-                    Text(
-                      item.donorDisplayName,
-                      textAlign: TextAlign.center,
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: AppColors.primaryPurple,
-                        fontSize: 22,
-                        fontWeight: FontWeight.w400,
+                        color: AppColors.textDark,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w900,
                         letterSpacing: 0.2,
                       ),
                     ),
-                    const SizedBox(height: 6),
-                    ...item.addressLines.map(
-                      (line) => Text(
-                        line,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppColors.textGrey,
-                          fontSize: 18,
-                          fontWeight: FontWeight.w400,
-                          height: 1.15,
-                        ),
-                      ),
+                  ),
+                  const SizedBox(width: 12),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 10,
+                      vertical: 5,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      item.pincode,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.textGrey,
-                        fontSize: 18,
-                        fontWeight: FontWeight.w400,
-                      ),
+                    decoration: BoxDecoration(
+                      color: modeColor.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(999),
                     ),
-                  ],
-                ),
-              ),
-              Container(
-                height: 2,
-                width: double.infinity,
-                color: AppColors.primaryPurple.withOpacity(0.65),
-              ),
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 10,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item.monthLabel,
-                        style: const TextStyle(
-                          color: AppColors.textGrey,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ),
-                    Text(
+                    child: Text(
                       item.mode.listLabel,
                       style: TextStyle(
-                        color: item.isCancelled
-                            ? AppColors.textGrey
-                            : receiptGreen,
-                        fontSize: 18,
+                        color: modeColor,
+                        fontSize: 12,
                         fontWeight: FontWeight.w900,
-                        letterSpacing: 0.6,
+                        letterSpacing: 0.7,
                       ),
                     ),
-                    const Spacer(),
-                    Text(
-                      '₹  ${_formatMoney(item.amount)}',
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Text(
+                      item.donorDisplayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
-                        color: AppColors.textGrey,
+                        color: AppColors.primaryPurple,
                         fontSize: 18,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 14),
+                      Text(
+                        '₹ ${_formatMoney(item.amount)}',
+                        style: TextStyle(
+                          color: item.isCancelled
+                              ? AppColors.textGrey
+                              : AppColors.textDark,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                ],
               ),
             ],
           ),

@@ -1,9 +1,6 @@
 import 'dart:io';
-import 'dart:ui' as ui;
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -294,8 +291,7 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
               ),
             );
           },
-          onShare: (fundDetails) =>
-              _shareReceiptImage(item, captureKey, fundDetails),
+          onShare: (fundDetails) => _shareReceiptPdf(item, fundDetails),
           onMessage: (fundDetails) => _shareReceiptMessage(item, fundDetails),
         ),
       ),
@@ -383,57 +379,24 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
     }
   }
 
-  Future<File> _captureReceiptImage(
-    GlobalKey captureKey,
+  Future<void> _shareReceiptPdf(
     _ReceiptItem item,
-  ) async {
-    final BuildContext? captureContext = captureKey.currentContext;
-    if (captureContext == null) {
-      throw StateError('Receipt image is not ready yet.');
-    }
-
-    final RenderRepaintBoundary? boundary =
-        captureContext.findRenderObject() as RenderRepaintBoundary?;
-    if (boundary == null) {
-      throw StateError('Receipt image could not be captured.');
-    }
-
-    await WidgetsBinding.instance.endOfFrame;
-
-    final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
-    final ByteData? byteData = await image.toByteData(
-      format: ui.ImageByteFormat.png,
-    );
-    if (byteData == null) {
-      throw StateError('Receipt image encoding failed.');
-    }
-
-    final Directory tempDir = await getTemporaryDirectory();
-    final String fileName = _sanitizeFileName(
-      'receipt_${item.receiptId}_${item.receiptNo}_share',
-    );
-    final File file = File('${tempDir.path}/$fileName.png');
-    await file.writeAsBytes(byteData.buffer.asUint8List());
-    return file;
-  }
-
-  Future<void> _shareReceiptImage(
-    _ReceiptItem item,
-    GlobalKey captureKey,
     List<ReceiptFundDetail> fundDetails,
   ) async {
-    final File? imageFile = await _runReceiptAction<File>(
-      loadingText: 'Preparing receipt image...',
+    final ReceiptExportData data = _toExportData(item, fundDetails);
+    final Directory tempDir = await getTemporaryDirectory();
+    final File? pdfFile = await _runReceiptAction<File>(
+      loadingText: 'Preparing PDF...',
       errorTitle: 'Share failed',
-      task: () => _captureReceiptImage(captureKey, item),
+      task: () => buildReceiptPdfFile(data: data, targetDir: tempDir),
     );
-    if (imageFile == null) return;
+    if (pdfFile == null) return;
 
     try {
       await Share.shareXFiles(
-        <XFile>[XFile(imageFile.path)],
+        <XFile>[XFile(pdfFile.path)],
         subject: 'Receipt ${item.receiptNo}',
-        text: 'Please find receipt ${item.receiptNo} attached.',
+        text: _receiptExportService.buildShareText(data),
       );
     } catch (error) {
       if (!mounted) return;

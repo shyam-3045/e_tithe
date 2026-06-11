@@ -381,6 +381,12 @@ class AuthService {
         }
       }
     } catch (_) {
+      if (trimmedBody.startsWith('<!DOCTYPE') ||
+          trimmedBody.startsWith('<html') ||
+          trimmedBody.contains('<head>') ||
+          trimmedBody.contains('<body>')) {
+        return 'Server returned an unexpected error. Please try again.';
+      }
       return trimmedBody;
     }
 

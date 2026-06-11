@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 
 import '../../common/constants/app_colors.dart';
@@ -56,10 +58,14 @@ class _LoginPageState extends State<LoginPage> {
       );
     } catch (error) {
       if (!mounted) return;
+      final String message = error is SocketException ||
+              error.toString().contains('SocketException')
+          ? 'No internet connection. Please check your network and try again.'
+          : error.toString();
       await CommonAlert.showInfo(
         context,
         title: 'Login failed',
-        message: error.toString(),
+        message: message,
       );
     } finally {
       if (mounted) {

@@ -242,7 +242,6 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       builder: (context) => _AmountDetailDialog(
         funds: _funds,
         takenFundIds: takenFundIds,
-        paymentModes: _paymentModes,
       ),
     );
 
@@ -294,6 +293,7 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
           companyId: _selectedCompany?.companyId ?? 0,
           companyName: _selectedCompany?.companyName ?? '',
           notes: _notesController.text.trim(),
+          paymentModes: List<PaymentModeInfo>.unmodifiable(_paymentModes),
           payments: List<_ReceiptPaymentEntry>.unmodifiable(_payments),
           totalAmount: _totalAmount,
         ),
@@ -657,13 +657,11 @@ class _ReceiptPaymentEntry {
     required this.fundId,
     required this.fundName,
     required this.amount,
-    required this.mode,
   });
 
   final int fundId;
   final String fundName;
   final double amount;
-  final PaymentModeInfo mode;
 }
 
 class _DonorHeaderCard extends StatelessWidget {
@@ -783,15 +781,6 @@ class _PaymentRowCard extends StatelessWidget {
                     color: AppColors.textDark,
                     fontSize: 16,
                     fontWeight: FontWeight.w800,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  item.mode.name,
-                  style: const TextStyle(
-                    color: AppColors.textGrey,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
@@ -916,12 +905,10 @@ class _AmountDetailDialog extends StatefulWidget {
   const _AmountDetailDialog({
     required this.funds,
     required this.takenFundIds,
-    required this.paymentModes,
   });
 
   final List<FundInfo> funds;
   final Set<int> takenFundIds;
-  final List<PaymentModeInfo> paymentModes;
 
   @override
   State<_AmountDetailDialog> createState() => _AmountDetailDialogState();
@@ -932,7 +919,6 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
 
   late FundInfo _selectedFund;
   final _amountController = TextEditingController();
-  PaymentModeInfo? _selectedMode;
 
   @override
   void initState() {
@@ -951,10 +937,6 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
         (available.isNotEmpty
             ? available.first
             : const FundInfo(fundId: 0, fundName: 'General Donation'));
-
-    if (widget.paymentModes.isNotEmpty) {
-      _selectedMode = widget.paymentModes.first;
-    }
   }
 
   @override
@@ -988,16 +970,7 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
       return;
     }
 
-    if (_selectedMode == null) {
-      await CommonAlert.showInfo(
-        context,
-        title: 'Payment mode missing',
-        message: 'Please select a payment mode.',
-      );
-      return;
-    }
-
-    // TODO(API): You can validate fund type/mode rules here.
+    // TODO(API): You can validate fund type rules here.
 
     if (!mounted) return;
 
@@ -1006,7 +979,6 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
         fundId: _selectedFund.fundId,
         fundName: _selectedFund.fundName,
         amount: amount,
-        mode: _selectedMode!,
       ),
     );
   }
@@ -1112,51 +1084,6 @@ class _AmountDetailDialogState extends State<_AmountDetailDialog> {
                   return null;
                 },
               ),
-              const SizedBox(height: 12),
-              Container(
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: AppColors.statusBarPink.withOpacity(0.55),
-                    width: 1.4,
-                  ),
-                ),
-                child: widget.paymentModes.isEmpty
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: Text(
-                          'No payment modes available.',
-                          style: TextStyle(
-                            color: AppColors.textGrey,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      )
-                    : Column(
-                        children: widget.paymentModes
-                            .map(
-                              (mode) => RadioListTile<PaymentModeInfo>(
-                                value: mode,
-                                groupValue: _selectedMode,
-                                activeColor: AppColors.statusBarPink,
-                                title: Text(
-                                  mode.name,
-                                  style: const TextStyle(
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                                onChanged: (value) {
-                                  if (value == null) return;
-                                  setState(() {
-                                    _selectedMode = value;
-                                  });
-                                },
-                              ),
-                            )
-                            .toList(),
-                      ),
-              ),
             ],
           ),
         ),
@@ -1198,6 +1125,7 @@ class _ReceiptSignaturePage extends StatefulWidget {
     required this.companyId,
     required this.companyName,
     required this.notes,
+    required this.paymentModes,
     required this.payments,
     required this.totalAmount,
   });
@@ -1211,6 +1139,7 @@ class _ReceiptSignaturePage extends StatefulWidget {
   final int companyId;
   final String companyName;
   final String notes;
+  final List<PaymentModeInfo> paymentModes;
   final List<_ReceiptPaymentEntry> payments;
   final double totalAmount;
 
@@ -1221,6 +1150,7 @@ class _ReceiptSignaturePage extends StatefulWidget {
 class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
   bool _isSubmitting = false;
   late final TextEditingController _notesController;
+  PaymentModeInfo? _selectedPaymentMode;
 
   @override
   void initState() {
@@ -1265,14 +1195,6 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     return UserService.instance.fetchUserById(userId);
   }
 
-  String _combinedPaymentMode() {
-    final Set<String> modes = widget.payments.map((p) => p.mode.name).toSet();
-    if (modes.length == 1) {
-      return modes.first;
-    }
-    return 'MIXED';
-  }
-
   Future<Map<String, dynamic>> _buildReceiptPayload() async {
     final UserDetails user = await _resolveCurrentUser();
     final UserData? cachedUserData =
@@ -1284,7 +1206,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     final DateTime now = DateTime.now();
     final String utcNow = now.toUtc().toIso8601String();
     final String paymentMonth = '${widget.month}-${widget.year}';
-    final String paymentMode = _combinedPaymentMode();
+    final String paymentMode = _selectedPaymentMode?.name.trim() ?? '';
     final int totalAmount = widget.totalAmount.round();
     final String createdBy = user.userName;
     final String modifiedBy = user.userName;
@@ -1313,7 +1235,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
         'ChequeNo': 'N/A',
         'FundID': item.fundId,
         'FundName': item.fundName,
-        'PaymentMode': item.mode.name,
+        'PaymentMode': paymentMode,
         'Deleted': false,
         'CreatedOn': utcNow,
         'CreatedBy': createdBy,
@@ -1353,11 +1275,18 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
   Future<void> _handleSubmit() async {
     if (_isSubmitting) return;
 
+    final List<String> errors = <String>[];
+    if (_selectedPaymentMode == null) {
+      errors.add('Please select Tenders.');
+    }
     if (_notesController.text.trim().isEmpty) {
+      errors.add('Please enter Notes.');
+    }
+    if (errors.isNotEmpty) {
       await CommonAlert.showInfo(
         context,
         title: 'Incomplete',
-        message: 'Please enter Notes.',
+        message: errors.join('\n'),
       );
       return;
     }
@@ -1509,6 +1438,62 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
                       ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppColors.borderGrey),
+                ),
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Tenders',
+                      style: TextStyle(
+                        color: AppColors.textGrey,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    DropdownButtonFormField<PaymentModeInfo>(
+                      value: _selectedPaymentMode,
+                      isExpanded: true,
+                      decoration: _fieldDecoration(
+                        label: '',
+                        icon: Icons.account_balance_wallet_rounded,
+                      ),
+                      dropdownColor: AppColors.surface,
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: AppColors.textGrey,
+                      ),
+                      hint: const Text('Select mode'),
+                      items: widget.paymentModes
+                          .map(
+                            (mode) => DropdownMenuItem<PaymentModeInfo>(
+                              value: mode,
+                              child: Text(
+                                mode.name,
+                                style: const TextStyle(
+                                  color: AppColors.textDark,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                      onChanged: (value) {
+                        setState(() {
+                          _selectedPaymentMode = value;
+                        });
+                      },
                     ),
                   ],
                 ),

@@ -743,145 +743,143 @@ class _NewDonorPageState extends State<NewDonorPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _SectionCard(
-                  title: 'Personal Details',
-                  isExpanded: _personalExpanded,
-                  onToggle: () {
-                    setState(() {
-                      _personalExpanded = !_personalExpanded;
-                    });
-                  },
-                  child: Column(
-                    children: [
-                      _DonorTypeSelector(
-                        value: _selectedDonorType,
-                        onChanged: _selectDonorType,
-                      ),
-                      const SizedBox(height: 16),
-                      IgnorePointer(
-                        ignoring: !_hasSelectedDonorType,
-                        child: AnimatedOpacity(
-                          duration: const Duration(milliseconds: 180),
-                          opacity: _hasSelectedDonorType ? 1 : 0.45,
-                          child: Column(
+                _DonorTypeSelector(
+                  value: _selectedDonorType,
+                  onChanged: _selectDonorType,
+                ),
+                const SizedBox(height: 18),
+                IgnorePointer(
+                  ignoring: !_hasSelectedDonorType,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 180),
+                    opacity: _hasSelectedDonorType ? 1 : 0.45,
+                    child: _SectionCard(
+                      title: _selectedDonorType == 2
+                          ? 'Organization Details'
+                          : 'Personal Details',
+                      isExpanded: _personalExpanded,
+                      onToggle: () {
+                        if (!_hasSelectedDonorType) return;
+                        setState(() {
+                          _personalExpanded = !_personalExpanded;
+                        });
+                      },
+                      child: Column(
+                        children: [
+                          Row(
                             children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    flex: 2,
-                                    child: _DropdownField<String>(
-                                      value: _selectedTitle,
-                                      items: _titles,
-                                      icon: Icons.arrow_drop_down_rounded,
-                                      onChanged: (value) {
-                                        setState(() {
-                                          _selectedTitle = value;
-                                        });
-                                      },
-                                    ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    flex: 5,
-                                    child: _StyledTextField(
-                                      controller: _donorNameController,
-                                      label: 'Donor Name',
-                                      icon: Icons.person_rounded,
-                                      isRequired: true,
-                                      validator: (value) => _requiredValidator(
-                                        value,
-                                        'Donor name is required',
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 16),
-                              _PhotoPickerCard(
-                                imageBytes: _selectedPhotoBytes,
-                                label: _selectedPhoto?.name,
-                                onTap: _handlePhoto,
-                              ),
-                              const SizedBox(height: 16),
-                              _ChoiceGroup(
-                                label: 'Gender',
-                                value: _selectedGender,
-                                options: _genders,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedGender = value;
-                                  });
-                                },
-                              ),
-                              const SizedBox(height: 16),
-                              _StyledTextField(
-                                controller: _birthDateController,
-                                label: 'Birth Date',
-                                icon: Icons.calendar_month_rounded,
-                                readOnly: true,
-                                onTap: () => _pickDate(_birthDateController),
-                              ),
-                              const SizedBox(height: 16),
-                              _ChoiceGroup(
-                                label: 'Marital Status',
-                                value: _selectedMaritalStatus,
-                                options: _maritalStatuses,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedMaritalStatus = value;
-                                    if (_selectedMaritalStatus != 'Married') {
-                                      _weddingDateController.clear();
-                                    }
-                                  });
-                                },
-                              ),
-                              if (_selectedMaritalStatus == 'Married') ...[
-                                const SizedBox(height: 16),
-                                _StyledTextField(
-                                  controller: _weddingDateController,
-                                  label: 'Wedding Date',
-                                  icon: Icons.event_rounded,
-                                  readOnly: true,
-                                  onTap: () =>
-                                      _pickDate(_weddingDateController),
+                              Expanded(
+                                flex: 2,
+                                child: _DropdownField<String>(
+                                  value: _selectedTitle,
+                                  items: _titles,
+                                  icon: Icons.arrow_drop_down_rounded,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedTitle = value;
+                                    });
+                                  },
                                 ),
-                              ],
-                              const SizedBox(height: 16),
-                              _ChoiceGroup(
-                                label: 'Membership',
-                                value: _selectedMembership,
-                                options: _membershipOptions,
                               ),
-                              const SizedBox(height: 16),
-                              _DropdownField<String>(
-                                value: _selectedIdentityDoc,
-                                hintText: 'Identity Document Type',
-                                items: _identityDocOptions,
-                                icon: Icons.badge_outlined,
-                                onChanged: (value) {
-                                  if (value == null) return;
-                                  setState(() {
-                                    _selectedIdentityDoc = value;
-                                    _clearIdentityDocumentControllers();
-                                  });
-                                },
-                              ),
-                              if (_selectedIdentityDoc != null) ...[
-                                const SizedBox(height: 16),
-                                _StyledTextField(
-                                  controller: _selectedIdentityController,
-                                  label: _selectedIdentityLabel,
-                                  icon: Icons.badge_outlined,
-                                  keyboardType: _selectedIdentityKeyboardType,
-                                  textCapitalization:
-                                      _selectedIdentityCapitalization,
+                              const SizedBox(width: 12),
+                              Expanded(
+                                flex: 5,
+                                child: _StyledTextField(
+                                  controller: _donorNameController,
+                                  label: 'Donor Name',
+                                  icon: Icons.person_rounded,
+                                  isRequired: true,
+                                  validator: (value) => _requiredValidator(
+                                    value,
+                                    'Donor name is required',
+                                  ),
                                 ),
-                              ],
+                              ),
                             ],
                           ),
-                        ),
+                          const SizedBox(height: 16),
+                          _PhotoPickerCard(
+                            imageBytes: _selectedPhotoBytes,
+                            label: _selectedPhoto?.name,
+                            onTap: _handlePhoto,
+                          ),
+                          const SizedBox(height: 16),
+                          _ChoiceGroup(
+                            label: 'Gender',
+                            value: _selectedGender,
+                            options: _genders,
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedGender = value;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _birthDateController,
+                            label: 'Birth Date',
+                            icon: Icons.calendar_month_rounded,
+                            readOnly: true,
+                            onTap: () => _pickDate(_birthDateController),
+                          ),
+                          const SizedBox(height: 16),
+                          _ChoiceGroup(
+                            label: 'Marital Status',
+                            value: _selectedMaritalStatus,
+                            options: _maritalStatuses,
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedMaritalStatus = value;
+                                if (_selectedMaritalStatus != 'Married') {
+                                  _weddingDateController.clear();
+                                }
+                              });
+                            },
+                          ),
+                          if (_selectedMaritalStatus == 'Married') ...[
+                            const SizedBox(height: 16),
+                            _StyledTextField(
+                              controller: _weddingDateController,
+                              label: 'Wedding Date',
+                              icon: Icons.event_rounded,
+                              readOnly: true,
+                              onTap: () => _pickDate(_weddingDateController),
+                            ),
+                          ],
+                          const SizedBox(height: 16),
+                          _ChoiceGroup(
+                            label: 'Membership',
+                            value: _selectedMembership,
+                            options: _membershipOptions,
+                          ),
+                          const SizedBox(height: 16),
+                          _DropdownField<String>(
+                            value: _selectedIdentityDoc,
+                            hintText: 'Identity Document Type',
+                            items: _identityDocOptions,
+                            icon: Icons.badge_outlined,
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setState(() {
+                                _selectedIdentityDoc = value;
+                                _clearIdentityDocumentControllers();
+                              });
+                            },
+                          ),
+                          if (_selectedIdentityDoc != null) ...[
+                            const SizedBox(height: 16),
+                            _StyledTextField(
+                              controller: _selectedIdentityController,
+                              label: _selectedIdentityLabel,
+                              icon: Icons.badge_outlined,
+                              keyboardType: _selectedIdentityKeyboardType,
+                              textCapitalization:
+                                  _selectedIdentityCapitalization,
+                            ),
+                          ],
+                        ],
                       ),
-                    ],
+                    ),
                   ),
                 ),
                 const SizedBox(height: 18),

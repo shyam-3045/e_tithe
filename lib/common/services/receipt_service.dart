@@ -179,6 +179,7 @@ class ReceiptFundDetail {
     required this.companyId,
     required this.companyName,
     required this.regionName,
+    required this.regionAddress,
     required this.companyAddress,
     required this.email,
     required this.mobile,
@@ -191,6 +192,7 @@ class ReceiptFundDetail {
       companyId: _parseInt(json['companyID'] ?? json['companyId']),
       companyName: _string(json['companyName']),
       regionName: _string(json['regionName']),
+      regionAddress: _string(json['regionAddress']),
       companyAddress: _string(json['companyAddress']),
       email: _string(json['email']),
       mobile: _string(json['mobile']),
@@ -203,6 +205,7 @@ class ReceiptFundDetail {
   final int companyId;
   final String companyName;
   final String regionName;
+  final String regionAddress;
   final String companyAddress;
   final String email;
   final String mobile;

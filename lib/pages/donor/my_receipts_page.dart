@@ -459,7 +459,11 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
     final File? pdfFile = await _runReceiptAction<File>(
       loadingText: 'Preparing PDF...',
       errorTitle: 'Share failed',
-      task: () => buildReceiptPdfFile(data: data, targetDir: tempDir),
+      task: () => buildReceiptPdfFile(
+        data: data,
+        targetDir: tempDir,
+        fileNameSuffix: DateTime.now().millisecondsSinceEpoch.toString(),
+      ),
     );
     if (pdfFile == null) return;
 
@@ -1322,6 +1326,7 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
         companyId: 0,
         companyName: '',
         regionName: '',
+        regionAddress: '',
         companyAddress: '',
         email: '',
         mobile: '',
@@ -1842,10 +1847,6 @@ class _ReceiptViewBottomBar extends StatelessWidget {
       ),
     );
   }
-}
-
-String _sanitizeFileName(String value) {
-  return value.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
 }
 
 String _formatDate(DateTime date) {

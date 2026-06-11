@@ -16,12 +16,19 @@ import '../../common/services/receipt_html_generator_service.dart';
 import '../../common/widgets/common_alert.dart';
 import '../../common/services/receipt_service.dart';
 
+const PdfColor _receiptLineColor = PdfColor.fromInt(0xFF666666);
+const PdfColor _receiptBorderColor = PdfColor.fromInt(0xFF8D67E8);
+
 Future<File> buildReceiptPdfFile({
   required ReceiptExportData data,
   required Directory targetDir,
+  String? fileNameSuffix,
 }) async {
+  final String suffix = (fileNameSuffix ?? '').trim();
   final String fileName = sanitizeReceiptPdfFileName(
-    'receipt_${data.receiptNo}',
+    suffix.isEmpty
+        ? 'receipt_${data.receiptNo}'
+        : 'receipt_${data.receiptNo}_$suffix',
   );
   final Uint8List pdfBytes = await buildReceiptPdfBytes(data);
   final File outputFile = File('${targetDir.path}/$fileName.pdf');
@@ -36,12 +43,7 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
     logoBytes.buffer.asUint8List(),
   );
 
-  final String amountValue = data.amount.trim();
-  final String amountText = amountValue.isEmpty
-      ? ''
-      : (amountValue.toLowerCase().startsWith('rs')
-          ? amountValue
-          : 'Rs $amountValue');
+  final String amountText = _normalizeAmountText(data.amount);
 
   final List<ReceiptFundDetail> pdfDetails = data.fundDetails.isNotEmpty
       ? data.fundDetails
@@ -50,6 +52,7 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
             companyId: 0,
             companyName: '',
             regionName: '',
+            regionAddress: '',
             companyAddress: '',
             email: '',
             mobile: '',
@@ -68,16 +71,21 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
     companyDetail.regionName,
     'TAMIL NADU SOUTH',
   );
+  final String regionAddress = companyDetail.regionAddress.trim();
   final String companyAddress = _valueOrFallback(
     companyDetail.companyAddress,
     "No.56 C/4 (Upstairs) St. Mary's Street, Perumalpura mTirunelveli-627007",
   );
   final String companyMobile = companyDetail.mobile.trim();
   final String companyEmail = companyDetail.email.trim();
-  final List<String> footerContactLines = <String>[
+  final String footerContactLine = <String>[
     if (companyMobile.isNotEmpty) 'Phone: $companyMobile',
     if (companyEmail.isNotEmpty) 'Email: $companyEmail',
-  ];
+  ].join(' | ');
+  final String donorAddress = _composeDonorAddress(
+    address: data.address,
+    pincode: data.pincode,
+  );
 
   final List<pw.TableRow> tableRows = [
     pw.TableRow(
@@ -99,7 +107,7 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
         pw.Padding(
           padding: const pw.EdgeInsets.symmetric(vertical: 6),
           child: pw.Text(
-            'Amount',
+            'Amount (Rs.)',
             textAlign: pw.TextAlign.center,
             style: pw.TextStyle(
               fontSize: 9.5,
@@ -110,7 +118,7 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
       ],
     ),
     ...pdfDetails.map((detail) {
-      final String detailAmountText = 'Rs ${detail.amount.toStringAsFixed(2)}';
+      final String detailAmountText = 'Rs. ${detail.amount.toStringAsFixed(2)}';
       return pw.TableRow(
         children: [
           pw.Padding(
@@ -161,69 +169,78 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
 
   doc.addPage(
     pw.Page(
-      pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.all(18),
+      pageFormat: PdfPageFormat.a5,
+      margin: const pw.EdgeInsets.all(14),
       build: (context) {
         return pw.Container(
           decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.black, width: 1),
+            border: pw.Border.all(color: _receiptBorderColor, width: 1),
           ),
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.stretch,
             children: [
               pw.Container(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.fromLTRB(10, 10, 10, 9),
                 decoration: const pw.BoxDecoration(
                   border: pw.Border(
-                    bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                    bottom: pw.BorderSide(color: _receiptLineColor, width: 1),
                   ),
                 ),
-                child: pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                child: pw.Table(
+                  columnWidths: const {
+                    0: pw.FixedColumnWidth(48),
+                    1: pw.FlexColumnWidth(),
+                    2: pw.FixedColumnWidth(48),
+                  },
                   children: [
-                    pw.Container(
-                      width: 68,
-                      height: 68,
-                      decoration: pw.BoxDecoration(
-                        border: pw.Border.all(
-                          color: PdfColors.black,
-                          width: 1,
+                    pw.TableRow(
+                      verticalAlignment: pw.TableCellVerticalAlignment.top,
+                      children: [
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.only(top: 2),
+                          child: pw.SizedBox(
+                            width: 42,
+                            height: 42,
+                            child: pw.Image(logoImage, fit: pw.BoxFit.contain),
+                          ),
                         ),
-                      ),
-                      padding: const pw.EdgeInsets.all(4),
-                      child: pw.Image(logoImage, fit: pw.BoxFit.contain),
-                    ),
-                    pw.SizedBox(width: 8),
-                    pw.Expanded(
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
-                        children: [
-                          pw.Text(
-                            companyName,
-                            textAlign: pw.TextAlign.center,
-                            style: pw.TextStyle(
-                              fontSize: 11,
-                              fontWeight: pw.FontWeight.bold,
+                        pw.Column(
+                          crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+                          children: [
+                            pw.Text(
+                              companyName.toUpperCase(),
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                fontSize: 10.6,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
                             ),
-                          ),
-                          pw.SizedBox(height: 2),
-                          pw.Text(
-                            regionName,
-                            textAlign: pw.TextAlign.center,
-                            style: pw.TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: pw.FontWeight.bold,
+                            pw.SizedBox(height: 3),
+                            pw.Text(
+                              companyAddress,
+                              textAlign: pw.TextAlign.center,
+                              style: const pw.TextStyle(fontSize: 7.8),
                             ),
-                          ),
-                          pw.Text(
-                            companyAddress,
-                            textAlign: pw.TextAlign.center,
-                            style: const pw.TextStyle(fontSize: 9),
-                          ),
-                        ],
-                      ),
+                            pw.SizedBox(height: 2),
+                            pw.Text(
+                              regionName,
+                              textAlign: pw.TextAlign.center,
+                              style: pw.TextStyle(
+                                fontSize: 7.8,
+                                fontWeight: pw.FontWeight.bold,
+                              ),
+                            ),
+                            if (regionAddress.isNotEmpty)
+                              pw.Text(
+                                regionAddress,
+                                textAlign: pw.TextAlign.center,
+                                style: const pw.TextStyle(fontSize: 7.8),
+                              ),
+                          ],
+                        ),
+                        pw.SizedBox(),
+                      ],
                     ),
-                    pw.SizedBox(width: 68),
                   ],
                 ),
               ),
@@ -231,68 +248,74 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                 padding: const pw.EdgeInsets.symmetric(vertical: 6),
                 decoration: const pw.BoxDecoration(
                   border: pw.Border(
-                    bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                    bottom: pw.BorderSide(color: _receiptLineColor, width: 1),
                   ),
                 ),
                 child: pw.Text(
                   'RECEIPT',
                   textAlign: pw.TextAlign.center,
                   style: pw.TextStyle(
-                    fontSize: 11,
+                    fontSize: 10.2,
                     fontWeight: pw.FontWeight.bold,
                     letterSpacing: 1,
                   ),
                 ),
               ),
               pw.Container(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.all(10),
                 decoration: const pw.BoxDecoration(
                   border: pw.Border(
-                    bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                    bottom: pw.BorderSide(color: _receiptLineColor, width: 1),
                   ),
                 ),
-                child: pw.Row(
-                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                child: pw.Table(
+                  columnWidths: const {
+                    0: pw.FlexColumnWidth(),
+                    1: pw.FixedColumnWidth(184),
+                  },
                   children: [
-                    pw.Expanded(
-                      child: pw.Column(
-                        crossAxisAlignment: pw.CrossAxisAlignment.start,
-                        children: [
-                          pw.Text(
-                            'Received with thanks from ${data.donorName}',
-                            style: pw.TextStyle(
-                              fontSize: 9.5,
-                              fontWeight: pw.FontWeight.bold,
-                            ),
-                          ),
-                          pw.SizedBox(height: 6),
-                          pw.Text(
-                            'Address:',
-                            style: const pw.TextStyle(fontSize: 9),
-                          ),
-                          pw.Text(
-                            data.address,
-                            style: const pw.TextStyle(fontSize: 9),
-                          ),
-                          pw.Text(
-                            data.pincode,
-                            style: const pw.TextStyle(fontSize: 9),
-                          ),
-                        ],
-                      ),
-                    ),
-                    pw.SizedBox(width: 12),
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.end,
+                    pw.TableRow(
+                      verticalAlignment: pw.TableCellVerticalAlignment.top,
                       children: [
-                        pw.Text(
-                          'Receipt #: ${data.receiptNo}',
-                          style: const pw.TextStyle(fontSize: 9.5),
+                        pw.Padding(
+                          padding: const pw.EdgeInsets.only(right: 10),
+                          child: pw.Column(
+                            crossAxisAlignment: pw.CrossAxisAlignment.start,
+                            children: [
+                              pw.Text(
+                                'Received with thanks from ${data.donorName}',
+                                style: pw.TextStyle(
+                                  fontSize: 8.4,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.SizedBox(height: 8),
+                              pw.Text(
+                                'Address:',
+                                style: pw.TextStyle(
+                                  fontSize: 8.0,
+                                  fontWeight: pw.FontWeight.bold,
+                                ),
+                              ),
+                              pw.Text(
+                                donorAddress,
+                                style: const pw.TextStyle(fontSize: 8.0),
+                              ),
+                            ],
+                          ),
                         ),
-                        pw.SizedBox(height: 4),
-                        pw.Text(
-                          'Date : ${data.receiptDate}',
-                          style: const pw.TextStyle(fontSize: 9.5),
+                        pw.Column(
+                          children: [
+                            _buildInfoBox(
+                              label: 'Receipt #:',
+                              value: data.receiptNo,
+                            ),
+                            pw.SizedBox(height: 8),
+                            _buildInfoBox(
+                              label: 'Date:',
+                              value: data.receiptDate,
+                            ),
+                          ],
                         ),
                       ],
                     ),
@@ -301,14 +324,14 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
               ),
               pw.Table(
                 border: const pw.TableBorder(
-                  top: pw.BorderSide(color: PdfColors.black, width: 1),
-                  bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                  top: pw.BorderSide(color: _receiptLineColor, width: 1),
+                  bottom: pw.BorderSide(color: _receiptLineColor, width: 1),
                   verticalInside: pw.BorderSide(
-                    color: PdfColors.black,
+                    color: _receiptLineColor,
                     width: 1,
                   ),
                   horizontalInside: pw.BorderSide(
-                    color: PdfColors.black,
+                    color: _receiptLineColor,
                     width: 1,
                   ),
                 ),
@@ -319,103 +342,121 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                 children: tableRows,
               ),
               pw.Container(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 9,
+                ),
                 decoration: const pw.BoxDecoration(
                   border: pw.Border(
-                    bottom: pw.BorderSide(color: PdfColors.black, width: 1),
+                    bottom: pw.BorderSide(color: _receiptLineColor, width: 1),
                   ),
                 ),
-                child: pw.Text(
-                  'Received as: ${data.paymentMode}',
-                  style: const pw.TextStyle(fontSize: 9.5),
-                ),
-              ),
-              pw.Container(
-                padding: const pw.EdgeInsets.all(8),
-                decoration: const pw.BoxDecoration(
-                  border: pw.Border(
-                    bottom: pw.BorderSide(color: PdfColors.black, width: 1),
-                  ),
-                ),
-                child: pw.Text(
-                  'Rupees $amountText only',
-                  style: const pw.TextStyle(fontSize: 9.5),
-                ),
-              ),
-              pw.Container(
-                padding: const pw.EdgeInsets.all(8),
-                decoration: const pw.BoxDecoration(
-                  border: pw.Border(
-                    bottom: pw.BorderSide(color: PdfColors.black, width: 1),
-                  ),
-                ),
-                child: pw.Text(
-                  'Notes: ${data.notes.trim().isEmpty ? '-' : data.notes.trim()}',
-                  style: const pw.TextStyle(fontSize: 9.5),
-                ),
-              ),
-              pw.Container(
-                padding: const pw.EdgeInsets.fromLTRB(8, 18, 8, 8),
-                child: pw.Align(
-                  alignment: pw.Alignment.centerRight,
-                  child: pw.Column(
-                    crossAxisAlignment: pw.CrossAxisAlignment.center,
+                child: pw.RichText(
+                  text: pw.TextSpan(
+                    style: const pw.TextStyle(fontSize: 8.4),
                     children: [
-                      pw.Text(
-                        'for Scripture Union & CSSM council of India',
-                        style: const pw.TextStyle(fontSize: 9),
+                      pw.TextSpan(
+                        text: 'Received as: ',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                       ),
-                      pw.Container(
-                        margin: const pw.EdgeInsets.only(top: 18),
-                        width: 180,
-                        decoration: const pw.BoxDecoration(
-                          border: pw.Border(
-                            top: pw.BorderSide(
-                              color: PdfColors.black,
-                              width: 1,
-                            ),
-                          ),
-                        ),
-                        padding: const pw.EdgeInsets.only(top: 3),
-                        child: pw.Text(
-                          'Authorised Signatory',
-                          textAlign: pw.TextAlign.center,
-                          style: pw.TextStyle(
-                            fontSize: 9,
-                            fontWeight: pw.FontWeight.bold,
-                          ),
-                        ),
-                      ),
+                      pw.TextSpan(text: data.paymentMode),
                     ],
                   ),
                 ),
               ),
               pw.Container(
-                padding: const pw.EdgeInsets.all(8),
+                padding: const pw.EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 9,
+                ),
+                decoration: const pw.BoxDecoration(
+                  border: pw.Border(
+                    bottom: pw.BorderSide(color: _receiptLineColor, width: 1),
+                  ),
+                ),
+                child: pw.RichText(
+                  text: pw.TextSpan(
+                    style: const pw.TextStyle(fontSize: 8.4),
+                    children: [
+                      pw.TextSpan(
+                        text: 'Amount in Words: ',
+                        style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                      ),
+                      pw.TextSpan(text: '$amountText only'),
+                    ],
+                  ),
+                ),
+              ),
+              pw.Expanded(
+                child: pw.Container(
+                  padding: const pw.EdgeInsets.fromLTRB(10, 14, 10, 14),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(color: _receiptLineColor, width: 1),
+                    ),
+                  ),
+                  child: pw.Align(
+                    alignment: pw.Alignment.centerRight,
+                    child: pw.Column(
+                      mainAxisSize: pw.MainAxisSize.min,
+                      crossAxisAlignment: pw.CrossAxisAlignment.center,
+                      children: [
+                        pw.Text(
+                          'for Scripture Union & CSSM council of India',
+                          style: const pw.TextStyle(fontSize: 8.3),
+                        ),
+                        pw.Container(
+                          margin: const pw.EdgeInsets.only(top: 24),
+                          width: 140,
+                          decoration: const pw.BoxDecoration(
+                            border: pw.Border(
+                              top: pw.BorderSide(
+                                color: _receiptLineColor,
+                                width: 1,
+                              ),
+                            ),
+                          ),
+                          padding: const pw.EdgeInsets.only(top: 3),
+                          child: pw.Text(
+                            'Authorised Signatory',
+                            textAlign: pw.TextAlign.center,
+                            style: pw.TextStyle(
+                              fontSize: 8.5,
+                              fontWeight: pw.FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              pw.Container(
+                padding: const pw.EdgeInsets.fromLTRB(10, 8, 10, 10),
                 child: pw.Column(
                   children: [
                     pw.Text(
                       '"Your word is lamp to my feet and a light for my path. Psalms 119:105"',
                       textAlign: pw.TextAlign.center,
                       style: pw.TextStyle(
-                        fontSize: 8.5,
+                        fontSize: 7.6,
                         fontWeight: pw.FontWeight.bold,
+                        fontStyle: pw.FontStyle.italic,
                       ),
                     ),
                     pw.SizedBox(height: 3),
                     pw.Text(
                       companyAddress,
                       textAlign: pw.TextAlign.center,
-                      style: const pw.TextStyle(fontSize: 8.2),
+                      style: const pw.TextStyle(fontSize: 7.4),
                     ),
-                    if (footerContactLines.isNotEmpty) pw.SizedBox(height: 3),
-                    ...footerContactLines.map(
-                      (String line) => pw.Text(
-                        line,
+                    if (footerContactLine.isNotEmpty) pw.SizedBox(height: 3),
+                    if (footerContactLine.isNotEmpty)
+                      pw.Text(
+                        footerContactLine,
                         textAlign: pw.TextAlign.center,
-                        style: const pw.TextStyle(fontSize: 8.2),
+                        style: const pw.TextStyle(fontSize: 7.4),
                       ),
-                    ),
                   ],
                 ),
               ),
@@ -437,6 +478,7 @@ ReceiptFundDetail _resolveCompanyDetail(List<ReceiptFundDetail> details) {
   for (final ReceiptFundDetail detail in details) {
     if (detail.companyName.trim().isNotEmpty ||
         detail.regionName.trim().isNotEmpty ||
+        detail.regionAddress.trim().isNotEmpty ||
         detail.companyAddress.trim().isNotEmpty ||
         detail.mobile.trim().isNotEmpty ||
         detail.email.trim().isNotEmpty) {
@@ -449,6 +491,69 @@ ReceiptFundDetail _resolveCompanyDetail(List<ReceiptFundDetail> details) {
 String _valueOrFallback(String value, String fallback) {
   final String normalized = value.trim();
   return normalized.isEmpty ? fallback : normalized;
+}
+
+String _composeDonorAddress({
+  required String address,
+  required String pincode,
+}) {
+  final List<String> values = <String>[
+    address.trim(),
+    pincode.trim(),
+  ].where((value) => value.isNotEmpty).toList();
+  return values.isEmpty ? 'Address not provided' : values.join(', ');
+}
+
+String _normalizeAmountText(String value) {
+  final String normalized = value.trim();
+  if (normalized.isEmpty) return '';
+
+  final String digitsOnly = normalized.replaceAll(RegExp(r'[^0-9.]'), '');
+  final double? parsed = double.tryParse(digitsOnly);
+  if (parsed == null) return normalized;
+  return 'Rs. ${parsed.toStringAsFixed(2)}';
+}
+
+pw.Widget _buildInfoBox({
+  required String label,
+  required String value,
+}) {
+  return pw.Container(
+    width: 176,
+    padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+    decoration: pw.BoxDecoration(
+      border: pw.Border.all(color: _receiptLineColor, width: 1),
+      borderRadius: const pw.BorderRadius.all(pw.Radius.circular(2)),
+    ),
+    child: pw.Table(
+      columnWidths: const {
+        0: pw.FixedColumnWidth(72),
+        1: pw.FlexColumnWidth(),
+      },
+      children: [
+        pw.TableRow(
+          children: [
+            pw.Padding(
+              padding: const pw.EdgeInsets.only(right: 8),
+              child: pw.Text(
+                label,
+                textAlign: pw.TextAlign.right,
+                style: pw.TextStyle(
+                  fontSize: 8.3,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ),
+            pw.Text(
+              value,
+              textAlign: pw.TextAlign.right,
+              style: const pw.TextStyle(fontSize: 8.3),
+            ),
+          ],
+        ),
+      ],
+    ),
+  );
 }
 
 class ReceiptPdfWebViewPage extends StatefulWidget {
@@ -531,6 +636,7 @@ class _ReceiptPdfWebViewPageState extends State<ReceiptPdfWebViewPage> {
     return buildReceiptPdfFile(
       data: widget.receiptData,
       targetDir: targetDir,
+      fileNameSuffix: DateTime.now().millisecondsSinceEpoch.toString(),
     );
   }
 

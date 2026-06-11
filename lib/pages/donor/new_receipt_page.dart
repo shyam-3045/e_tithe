@@ -264,10 +264,6 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
       errors.add('Please add at least one payment (Add Pay).');
     }
 
-    if (_notesController.text.trim().isEmpty) {
-      errors.add('Please enter Notes.');
-    }
-
     if (_companies.isNotEmpty && _selectedCompany == null) {
       errors.add('Please select Company.');
     }
@@ -584,17 +580,6 @@ class _NewReceiptPageState extends State<NewReceiptPage> {
                     hint: _isLoadingCompanies
                         ? const Text('Loading companies...')
                         : const Text('Select company'),
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: _notesController,
-                    decoration: _fieldDecoration(
-                      label: 'Notes',
-                      icon: Icons.notes_rounded,
-                    ),
-                    minLines: 2,
-                    maxLines: 3,
-                    textInputAction: TextInputAction.done,
                   ),
                 ],
               ),
@@ -1235,6 +1220,19 @@ class _ReceiptSignaturePage extends StatefulWidget {
 
 class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
   bool _isSubmitting = false;
+  late final TextEditingController _notesController;
+
+  @override
+  void initState() {
+    super.initState();
+    _notesController = TextEditingController(text: widget.notes);
+  }
+
+  @override
+  void dispose() {
+    _notesController.dispose();
+    super.dispose();
+  }
 
   String _normalizeRepType(String userTypeName) {
     return userTypeName.trim();
@@ -1290,7 +1288,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     final int totalAmount = widget.totalAmount.round();
     final String createdBy = user.userName;
     final String modifiedBy = user.userName;
-    final String notes = widget.notes.trim();
+    final String notes = _notesController.text.trim();
     final String companyName = widget.companyName;
     final int regionId = (widget.regionId != null && widget.regionId! > 0)
         ? widget.regionId!
@@ -1354,6 +1352,15 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
 
   Future<void> _handleSubmit() async {
     if (_isSubmitting) return;
+
+    if (_notesController.text.trim().isEmpty) {
+      await CommonAlert.showInfo(
+        context,
+        title: 'Incomplete',
+        message: 'Please enter Notes.',
+      );
+      return;
+    }
 
     final bool? confirm = await showDialog<bool>(
       context: context,
@@ -1505,6 +1512,17 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
                     ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _notesController,
+                decoration: _fieldDecoration(
+                  label: 'Notes',
+                  icon: Icons.notes_rounded,
+                ),
+                minLines: 2,
+                maxLines: 3,
+                textInputAction: TextInputAction.done,
               ),
             ],
           ),

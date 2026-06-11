@@ -374,7 +374,7 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
     return ReceiptExportData(
       receiptId: item.receiptId,
       receiptNo: item.receiptNo,
-      receiptDate: _formatDateTime(item.date),
+      receiptDate: _formatDate(item.date),
       donorName: item.donorDisplayName,
       address: item.addressLines.join(', '),
       pincode: item.pincode,

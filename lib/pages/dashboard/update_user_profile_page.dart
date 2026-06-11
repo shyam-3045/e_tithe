@@ -5,7 +5,6 @@ import '../../common/constants/app_colors.dart';
 import '../../common/services/auth_service.dart';
 import '../../common/widgets/app_form_text_field.dart';
 import '../../common/widgets/common_alert.dart';
-import '../../common/widgets/primary_button.dart';
 
 class UpdateUserProfilePage extends StatefulWidget {
   const UpdateUserProfilePage({super.key});
@@ -103,33 +102,12 @@ class _UpdateUserProfilePageState extends State<UpdateUserProfilePage> {
         statusBarBrightness: Brightness.dark,
       ),
       child: Scaffold(
-        appBar: AppBar(title: const Text('Update Profile')),
-        bottomNavigationBar: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(18, 10, 18, 18),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                PrimaryButton(
-                  label: 'Update',
-                  isLoading: _isSaving,
-                  onPressed: _isSaving ? null : _handleUpdate,
-                ),
-                const SizedBox(height: 6),
-                TextButton(
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  child: const Text('Back'),
-                ),
-              ],
-            ),
-          ),
-        ),
+        appBar: AppBar(title: const Text('Profile')),
         body: SafeArea(
           child: Form(
             key: _formKey,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(18, 18, 18, 110),
+              padding: const EdgeInsets.fromLTRB(18, 18, 18, 24),
               child: Column(
                 children: [
                   _ProfileHeaderCard(

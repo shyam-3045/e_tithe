@@ -1,5 +1,6 @@
 import 'receipt_export_service.dart';
 import 'receipt_service.dart';
+import 'amount_words_service.dart';
 
 class ReceiptHtmlGeneratorService {
   ReceiptHtmlGeneratorService._();
@@ -13,7 +14,10 @@ class ReceiptHtmlGeneratorService {
         ? ''
         : '<img class="logo" src="data:image/jpeg;base64,$logoBase64" alt="Logo" />';
 
-    final String amountText = _normalizeAmountText(data.amount);
+    final String amountText = AmountWordsService.formatCurrency(data.amount);
+    final String amountInWords = AmountWordsService.formatAmountInWords(
+      data.amount,
+    );
 
     final List<ReceiptFundDetail> details = data.fundDetails.isNotEmpty
         ? data.fundDetails
@@ -189,7 +193,7 @@ class ReceiptHtmlGeneratorService {
             </div>
 
             <div class="detail-line"><span class="label">Received as:</span> ${_escapeHtml(data.paymentMode)}</div>
-            <div class="detail-line"><span class="label">Amount in Words:</span> ${_escapeHtml(amountText)} only</div>
+            <div class="detail-line"><span class="label">Amount in Words:</span> ${_escapeHtml(amountInWords)} only</div>
             <div class="sign-row">
                 <div class="sign-block">
                     for Scripture Union &amp; CSSM council of India
@@ -235,16 +239,6 @@ class ReceiptHtmlGeneratorService {
       pincode.trim(),
     ].where((value) => value.isNotEmpty).toList();
     return values.isEmpty ? 'Address not provided' : values.join(', ');
-  }
-
-  String _normalizeAmountText(String value) {
-    final String normalized = value.trim();
-    if (normalized.isEmpty) return '';
-
-    final String digitsOnly = normalized.replaceAll(RegExp(r'[^0-9.]'), '');
-    final double? parsed = double.tryParse(digitsOnly);
-    if (parsed == null) return normalized;
-    return 'Rs. ${parsed.toStringAsFixed(2)}';
   }
 
   String _escapeHtml(String text) {

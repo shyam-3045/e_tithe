@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 
 import '../../common/constants/app_colors.dart';
+import '../../common/services/amount_words_service.dart';
 import '../../common/services/receipt_export_service.dart';
 import '../../common/services/receipt_html_generator_service.dart';
 import '../../common/widgets/common_alert.dart';
@@ -43,7 +44,10 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
     logoBytes.buffer.asUint8List(),
   );
 
-  final String amountText = _normalizeAmountText(data.amount);
+  final String amountText = AmountWordsService.formatCurrency(data.amount);
+  final String amountInWords = AmountWordsService.formatAmountInWords(
+    data.amount,
+  );
 
   final List<ReceiptFundDetail> pdfDetails = data.fundDetails.isNotEmpty
       ? data.fundDetails
@@ -382,7 +386,7 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                         text: 'Amount in Words: ',
                         style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
                       ),
-                      pw.TextSpan(text: '$amountText only'),
+                      pw.TextSpan(text: '$amountInWords only'),
                     ],
                   ),
                 ),
@@ -502,16 +506,6 @@ String _composeDonorAddress({
     pincode.trim(),
   ].where((value) => value.isNotEmpty).toList();
   return values.isEmpty ? 'Address not provided' : values.join(', ');
-}
-
-String _normalizeAmountText(String value) {
-  final String normalized = value.trim();
-  if (normalized.isEmpty) return '';
-
-  final String digitsOnly = normalized.replaceAll(RegExp(r'[^0-9.]'), '');
-  final double? parsed = double.tryParse(digitsOnly);
-  if (parsed == null) return normalized;
-  return 'Rs. ${parsed.toStringAsFixed(2)}';
 }
 
 pw.Widget _buildInfoBox({

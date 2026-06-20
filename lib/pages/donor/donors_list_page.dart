@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../common/constants/api_config.dart';
 import '../../common/constants/api_endpoints.dart';
@@ -115,6 +116,28 @@ class _DonorsListPageState extends State<DonorsListPage> {
     setState(() {
       _donorsFuture = _fetchDonors();
     });
+  }
+
+  Future<void> _callDonor(String phone) async {
+    final String trimmedPhone = phone.trim();
+    if (trimmedPhone.isEmpty) {
+      await CommonAlert.showInfo(
+        context,
+        title: 'No mobile number',
+        message: 'This donor does not have a mobile number.',
+      );
+      return;
+    }
+
+    final Uri uri = Uri(scheme: 'tel', path: trimmedPhone);
+    final bool launched = await launchUrl(uri);
+    if (!launched && mounted) {
+      await CommonAlert.showInfo(
+        context,
+        title: 'Unable to open dialer',
+        message: 'Could not open the phone dialer for this number.',
+      );
+    }
   }
 
   List<_DonorListItem> _filterDonors(List<_DonorListItem> donors) {
@@ -259,6 +282,7 @@ class _DonorsListPageState extends State<DonorsListPage> {
                           donor: donor,
                           action: _DonorMenuAction.newReceipt,
                         ),
+                        onCall: () => _callDonor(donor.phone),
                         onMenuSelected: (action) => _handleMenuSelection(
                           context,
                           donor: donor,
@@ -351,7 +375,10 @@ class _DonorListItem {
       membership: json['membership']?.toString() ?? 'Member',
       addressLines: _parseAddressLines(json),
       email: json['email']?.toString() ?? '',
-      phone: json['mobileNo']?.toString() ?? json['phone']?.toString() ?? '',
+      phone: json['mobile']?.toString() ??
+          json['mobileNo']?.toString() ??
+          json['phone']?.toString() ??
+          '',
       regionId: _parseInt(json['regionID'] ?? json['regionId']),
       dependents: _parseDependents(json),
       avatarUrl: avatarUrl,
@@ -476,11 +503,13 @@ class _DonorCard extends StatelessWidget {
     required this.donor,
     required this.onMenuSelected,
     required this.onAddReceipt,
+    required this.onCall,
   });
 
   final _DonorListItem donor;
   final ValueChanged<_DonorMenuAction> onMenuSelected;
   final VoidCallback onAddReceipt;
+  final VoidCallback onCall;
 
   @override
   Widget build(BuildContext context) {
@@ -507,19 +536,23 @@ class _DonorCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      donor.name.toUpperCase(),
-                      maxLines: 1,
+                      donor.phone.trim().isEmpty
+                          ? donor.name.toUpperCase()
+                          : '${donor.name.toUpperCase()} - ${donor.phone}',
+                      maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: Colors.white,
+                        fontSize: 12.5,
                         fontWeight: FontWeight.w800,
-                        letterSpacing: 0.3,
+                        height: 1.12,
+                        letterSpacing: 0.2,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  _QuickAddReceiptButton(onTap: onAddReceipt),
                   const SizedBox(width: 8),
+                  _QuickAddReceiptButton(onTap: onAddReceipt),
+                  const SizedBox(width: 6),
                   _MenuButton(onSelected: onMenuSelected),
                 ],
               ),
@@ -643,18 +676,16 @@ class _DonorCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 14),
-                      const Icon(
-                        Icons.call_rounded,
-                        size: 18,
-                        color: AppColors.statusBarPink,
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        donor.phone,
-                        style: const TextStyle(
-                          color: AppColors.textGrey,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
+                      InkWell(
+                        onTap: onCall,
+                        borderRadius: BorderRadius.circular(999),
+                        child: const Padding(
+                          padding: EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.call_rounded,
+                            size: 18,
+                            color: AppColors.statusBarPink,
+                          ),
                         ),
                       ),
                     ],
@@ -685,12 +716,12 @@ class _QuickAddReceiptButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           onTap: onTap,
           child: const SizedBox(
-            width: 34,
-            height: 34,
+            width: 30,
+            height: 30,
             child: Icon(
               Icons.receipt_long_rounded,
               color: Colors.white,
-              size: 18,
+              size: 17,
             ),
           ),
         ),
@@ -788,8 +819,8 @@ class _MenuButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 34,
-      height: 34,
+      width: 30,
+      height: 30,
       decoration: BoxDecoration(
         color: AppColors.primaryPurple,
         borderRadius: BorderRadius.circular(12),
@@ -818,7 +849,7 @@ class _MenuButton extends StatelessWidget {
           ),
         ],
         child: const Center(
-          child: Icon(Icons.more_vert_rounded, color: Colors.white, size: 20),
+          child: Icon(Icons.more_vert_rounded, color: Colors.white, size: 18),
         ),
       ),
     );

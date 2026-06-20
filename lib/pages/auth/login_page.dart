@@ -1,6 +1,8 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
+import 'package:flutter/services.dart';
 
 import '../../common/constants/app_colors.dart';
 import '../../common/constants/app_constants.dart';
@@ -23,6 +25,7 @@ class _LoginPageState extends State<LoginPage> {
   final TextEditingController _passwordController = TextEditingController();
   bool _isPasswordHidden = true;
   bool _isLoading = false;
+  DateTime? _lastBackPressTime;
 
   Future<void> _login() async {
     FocusScope.of(context).unfocus();
@@ -83,107 +86,125 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            return SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  minHeight: constraints.maxHeight - 48,
-                ),
-                child: Center(
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 420),
-                    child: Container(
-                      padding: const EdgeInsets.all(24),
-                      decoration: BoxDecoration(
-                        color: AppColors.surface,
-                        borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppColors.borderGrey),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.06),
-                            blurRadius: 18,
-                            offset: const Offset(0, 8),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const AppLogo(size: 112),
-                          const SizedBox(height: 24),
-                          const Text(
-                            'Welcome back',
-                            style: TextStyle(
-                              color: AppColors.textDark,
-                              fontSize: 24,
-                              fontWeight: FontWeight.w700,
+    return WillPopScope(
+      onWillPop: () async {
+        final DateTime now = DateTime.now();
+        final bool shouldExit = _lastBackPressTime != null &&
+            now.difference(_lastBackPressTime!) <= const Duration(seconds: 2);
+
+        if (shouldExit) {
+          await SystemNavigator.pop();
+          return false;
+        }
+
+        _lastBackPressTime = now;
+        Fluttertoast.cancel();
+        Fluttertoast.showToast(msg: 'Press Again to Exit!');
+        return false;
+      },
+      child: Scaffold(
+        body: SafeArea(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              return SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: constraints.maxHeight - 48,
+                  ),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 420),
+                      child: Container(
+                        padding: const EdgeInsets.all(24),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(color: AppColors.borderGrey),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.06),
+                              blurRadius: 18,
+                              offset: const Offset(0, 8),
                             ),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Sign in to continue',
-                            textAlign: TextAlign.center,
-                            style: TextStyle(
-                              color: AppColors.textGrey,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                          const SizedBox(height: 24),
-                          AppTextField(
-                            controller: _emailController,
-                            hintText: 'Email',
-                            icon: Icons.mail_outline,
-                            keyboardType: TextInputType.emailAddress,
-                          ),
-                          const SizedBox(height: 14),
-                          AppTextField(
-                            controller: _passwordController,
-                            hintText: 'Password',
-                            icon: Icons.key,
-                            obscureText: _isPasswordHidden,
-                            suffixIcon: IconButton(
-                              onPressed: () {
-                                setState(
-                                  () => _isPasswordHidden = !_isPasswordHidden,
-                                );
-                              },
-                              icon: Icon(
-                                _isPasswordHidden
-                                    ? Icons.visibility_outlined
-                                    : Icons.visibility_off_outlined,
-                                color: AppColors.textGrey,
-                                size: 22,
+                          ],
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const AppLogo(size: 112),
+                            const SizedBox(height: 24),
+                            const Text(
+                              'Welcome back',
+                              style: TextStyle(
+                                color: AppColors.textDark,
+                                fontSize: 24,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
-                          ),
-                          const SizedBox(height: 22),
-                          PrimaryButton(
-                            label: 'Login',
-                            isLoading: _isLoading,
-                            onPressed: _login,
-                          ),
-                          const SizedBox(height: 20),
-                          const Text(
-                            AppConstants.versionLabel,
-                            style: TextStyle(
-                              color: AppColors.textGrey,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Sign in to continue',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: AppColors.textGrey,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 24),
+                            AppTextField(
+                              controller: _emailController,
+                              hintText: 'Email',
+                              icon: Icons.mail_outline,
+                              keyboardType: TextInputType.emailAddress,
+                            ),
+                            const SizedBox(height: 14),
+                            AppTextField(
+                              controller: _passwordController,
+                              hintText: 'Password',
+                              icon: Icons.key,
+                              obscureText: _isPasswordHidden,
+                              suffixIcon: IconButton(
+                                onPressed: () {
+                                  setState(
+                                    () =>
+                                        _isPasswordHidden = !_isPasswordHidden,
+                                  );
+                                },
+                                icon: Icon(
+                                  _isPasswordHidden
+                                      ? Icons.visibility_outlined
+                                      : Icons.visibility_off_outlined,
+                                  color: AppColors.textGrey,
+                                  size: 22,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 22),
+                            PrimaryButton(
+                              label: 'Login',
+                              isLoading: _isLoading,
+                              onPressed: _login,
+                            ),
+                            const SizedBox(height: 20),
+                            const Text(
+                              AppConstants.versionLabel,
+                              style: TextStyle(
+                                color: AppColors.textGrey,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
                 ),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );

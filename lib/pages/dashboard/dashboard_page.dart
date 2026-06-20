@@ -53,6 +53,30 @@ class _DashboardPageState extends State<DashboardPage> {
     }
   }
 
+  Future<bool> _confirmExit() async {
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) {
+        return AlertDialog(
+          title: const Text('Exit App'),
+          content: const Text('Do you want to exit the app?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Exit'),
+            ),
+          ],
+        );
+      },
+    );
+
+    return confirmed ?? false;
+  }
+
   @override
   Widget build(BuildContext context) {
     return FutureBuilder<AuthSession?>(
@@ -68,97 +92,107 @@ class _DashboardPageState extends State<DashboardPage> {
             statusBarIconBrightness: Brightness.light,
             statusBarBrightness: Brightness.dark,
           ),
-          child: Scaffold(
-            drawer: _DashboardDrawer(userName: userName, role: role),
-            appBar: AppBar(
-              toolbarHeight: 78,
-              titleSpacing: 0,
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('e-Tithe'),
-                  const SizedBox(height: 2),
-                  Text(
-                    '$userName  -  [$role]',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 17,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            body: SafeArea(
-              top: false,
-              child: LayoutBuilder(
-                builder: (context, constraints) {
-                  final double maxWidth = constraints.maxWidth > 720
-                      ? 680
-                      : 720;
+          child: PopScope(
+            canPop: false,
+            onPopInvokedWithResult: (bool didPop, Object? result) async {
+              if (didPop) return;
 
-                  return SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: maxWidth),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const DashboardHeroCarousel(),
-                            const SizedBox(height: 28),
-                            GridView.count(
-                              crossAxisCount: constraints.maxWidth >= 620
-                                  ? 4
-                                  : 2,
-                              shrinkWrap: true,
-                              physics: const NeverScrollableScrollPhysics(),
-                              crossAxisSpacing: 18,
-                              mainAxisSpacing: 18,
-                              childAspectRatio: 1.72,
-                              children: [
-                                DashboardActionCard(
-                                  title: 'New Donor',
-                                  icon: Icons.person_add_alt_1_rounded,
-                                  onTap: () => Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => const NewDonorPage(),
-                                    ),
-                                  ),
-                                ),
-                                DashboardActionCard(
-                                  title: 'Donors',
-                                  icon: Icons.volunteer_activism_rounded,
-                                  onTap: () => Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => const DonorsListPage(),
-                                    ),
-                                  ),
-                                ),
-                                DashboardActionCard(
-                                  title: 'Receipts',
-                                  icon: Icons.receipt_long_rounded,
-                                  onTap: () => Navigator.of(context).push(
-                                    MaterialPageRoute<void>(
-                                      builder: (_) => const MyReceiptsPage(),
-                                    ),
-                                  ),
-                                ),
-                                DashboardActionCard(
-                                  title: 'Notifications',
-                                  icon: Icons.notifications_active_rounded,
-                                  onTap: () =>
-                                      _showComingSoon(context, 'Notifications'),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
+              final bool shouldExit = await _confirmExit();
+              if (!shouldExit) return;
+              await SystemNavigator.pop();
+            },
+            child: Scaffold(
+              drawer: _DashboardDrawer(userName: userName, role: role),
+              appBar: AppBar(
+                toolbarHeight: 78,
+                titleSpacing: 0,
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('e-Tithe'),
+                    const SizedBox(height: 2),
+                    Text(
+                      '$userName  -  [$role]',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                  );
-                },
+                  ],
+                ),
+              ),
+              body: SafeArea(
+                top: false,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final double maxWidth =
+                        constraints.maxWidth > 720 ? 680 : 720;
+
+                    return SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 22, 20, 28),
+                      child: Center(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(maxWidth: maxWidth),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const DashboardHeroCarousel(),
+                              const SizedBox(height: 28),
+                              GridView.count(
+                                crossAxisCount:
+                                    constraints.maxWidth >= 620 ? 4 : 2,
+                                shrinkWrap: true,
+                                physics: const NeverScrollableScrollPhysics(),
+                                crossAxisSpacing: 18,
+                                mainAxisSpacing: 18,
+                                childAspectRatio: 1.72,
+                                children: [
+                                  DashboardActionCard(
+                                    title: 'New Donor',
+                                    icon: Icons.person_add_alt_1_rounded,
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => const NewDonorPage(),
+                                      ),
+                                    ),
+                                  ),
+                                  DashboardActionCard(
+                                    title: 'Donors',
+                                    icon: Icons.volunteer_activism_rounded,
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => const DonorsListPage(),
+                                      ),
+                                    ),
+                                  ),
+                                  DashboardActionCard(
+                                    title: 'Receipts',
+                                    icon: Icons.receipt_long_rounded,
+                                    onTap: () => Navigator.of(context).push(
+                                      MaterialPageRoute<void>(
+                                        builder: (_) => const MyReceiptsPage(),
+                                      ),
+                                    ),
+                                  ),
+                                  DashboardActionCard(
+                                    title: 'Notifications',
+                                    icon: Icons.notifications_active_rounded,
+                                    onTap: () => _showComingSoon(
+                                      context,
+                                      'Notifications',
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ),

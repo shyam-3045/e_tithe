@@ -381,7 +381,6 @@ class _NewDonorPageState extends State<NewDonorPage> {
         _selectedMaritalStatus = null;
         _birthDateController.clear();
         _weddingDateController.clear();
-        _selectedIdentityDoc = 'Aadhar';
         _panController.clear();
         _passportController.clear();
         _voterIdController.clear();
@@ -389,10 +388,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
         _dependents.clear();
       } else {
         _contactPersonNameController.clear();
-        if (_selectedIdentityDoc == 'Aadhar') {
-          _selectedIdentityDoc = null;
-        }
       }
+      _selectedIdentityDoc = null;
+      _clearIdentityDocumentControllers();
     });
   }
 
@@ -481,22 +479,19 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'donorName': _donorNameController.text.trim(),
       'photo': '',
       'panNumber': _isOrganizationDonor
-          ? ''
+          ? (_selectedIdentityDoc == 'PAN' ? _panController.text.trim() : '')
           : (_selectedIdentityDoc == 'PAN' ? _panController.text.trim() : ''),
       'aadhaarNumber':
-          (_isOrganizationDonor || _selectedIdentityDoc == 'Aadhar')
-              ? _aadharController.text.trim()
-              : '',
-      'passport': !_isOrganizationDonor && _selectedIdentityDoc == 'Passport'
+          _selectedIdentityDoc == 'Aadhar' ? _aadharController.text.trim() : '',
+      'passport': _selectedIdentityDoc == 'Passport'
           ? _passportController.text.trim()
           : '',
-      'voterID': !_isOrganizationDonor && _selectedIdentityDoc == 'Voter ID'
+      'voterID': _selectedIdentityDoc == 'Voter ID'
           ? _voterIdController.text.trim()
           : '',
-      'drivingLicence':
-          !_isOrganizationDonor && _selectedIdentityDoc == 'Driving Licence'
-              ? _drivingLicenceController.text.trim()
-              : '',
+      'drivingLicence': _selectedIdentityDoc == 'Driving Licence'
+          ? _drivingLicenceController.text.trim()
+          : '',
       'birthDate': _isOrganizationDonor
           ? null
           : _toApiDateString(_parseUiDate(_birthDateController.text)),
@@ -853,15 +848,44 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             label: _selectedPhoto?.name,
                             onTap: _handlePhoto,
                           ),
-                          if (_isOrganizationDonor) ...[
+                          const SizedBox(height: 16),
+                          _DropdownField<String>(
+                            value: _selectedIdentityDoc,
+                            hintText: 'Identity Document Type',
+                            items: _identityDocOptions,
+                            icon: Icons.badge_outlined,
+                            isRequired: true,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Identity document type is required';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setState(() {
+                                _selectedIdentityDoc = value;
+                                _clearIdentityDocumentControllers();
+                              });
+                            },
+                          ),
+                          if (_selectedIdentityDoc != null) ...[
                             const SizedBox(height: 16),
                             _StyledTextField(
-                              controller: _aadharController,
-                              label: 'Aadhar No',
+                              controller: _selectedIdentityController,
+                              label: _selectedIdentityLabel,
                               icon: Icons.badge_outlined,
-                              keyboardType: TextInputType.number,
+                              keyboardType: _selectedIdentityKeyboardType,
+                              textCapitalization:
+                                  _selectedIdentityCapitalization,
+                              isRequired: true,
+                              validator: (value) => _requiredValidator(
+                                value,
+                                '$_selectedIdentityLabel is required',
+                              ),
                             ),
-                          ] else ...[
+                          ],
+                          if (!_isOrganizationDonor) ...[
                             const SizedBox(height: 16),
                             _ChoiceGroup(
                               label: 'Gender',
@@ -911,31 +935,6 @@ class _NewDonorPageState extends State<NewDonorPage> {
                               value: _selectedMembership,
                               options: _membershipOptions,
                             ),
-                            const SizedBox(height: 16),
-                            _DropdownField<String>(
-                              value: _selectedIdentityDoc,
-                              hintText: 'Identity Document Type',
-                              items: _identityDocOptions,
-                              icon: Icons.badge_outlined,
-                              onChanged: (value) {
-                                if (value == null) return;
-                                setState(() {
-                                  _selectedIdentityDoc = value;
-                                  _clearIdentityDocumentControllers();
-                                });
-                              },
-                            ),
-                            if (_selectedIdentityDoc != null) ...[
-                              const SizedBox(height: 16),
-                              _StyledTextField(
-                                controller: _selectedIdentityController,
-                                label: _selectedIdentityLabel,
-                                icon: Icons.badge_outlined,
-                                keyboardType: _selectedIdentityKeyboardType,
-                                textCapitalization:
-                                    _selectedIdentityCapitalization,
-                              ),
-                            ],
                           ],
                         ],
                       ),
@@ -1138,11 +1137,12 @@ class _NewDonorPageState extends State<NewDonorPage> {
                                 ? 'Contact Email'
                                 : 'Email',
                             icon: Icons.email_outlined,
+                            isRequired: true,
                             keyboardType: TextInputType.emailAddress,
                             validator: (value) {
                               final String input = (value ?? '').trim();
                               if (input.isEmpty) {
-                                return null;
+                                return 'Email is required';
                               }
                               final bool isValid = RegExp(
                                 r'^[^@\s]+@[^@\s]+\.[^@\s]+$',

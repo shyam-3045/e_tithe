@@ -24,6 +24,8 @@ class DonorsListPage extends StatefulWidget {
 
 class _DonorsListPageState extends State<DonorsListPage> {
   late Future<List<_DonorListItem>> _donorsFuture;
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   String _toApiUserType(String userTypeName) {
     return userTypeName.trim();
@@ -33,6 +35,12 @@ class _DonorsListPageState extends State<DonorsListPage> {
   void initState() {
     super.initState();
     _donorsFuture = _fetchDonors();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<List<_DonorListItem>> _fetchDonors() async {
@@ -109,6 +117,18 @@ class _DonorsListPageState extends State<DonorsListPage> {
     });
   }
 
+  List<_DonorListItem> _filterDonors(List<_DonorListItem> donors) {
+    final String query = _searchQuery.trim().toLowerCase();
+    if (query.isEmpty) {
+      return donors;
+    }
+
+    return donors.where((donor) {
+      return donor.name.toLowerCase().contains(query) ||
+          donor.phone.toLowerCase().contains(query);
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,82 +140,137 @@ class _DonorsListPageState extends State<DonorsListPage> {
             onPressed: _refreshDonors,
             icon: const Icon(Icons.refresh_rounded, size: 20),
           ),
-          IconButton(
-            tooltip: 'Search',
-            onPressed: () => CommonAlert.showInfo(
-              context,
-              title: 'Search',
-              message: 'Search UI can be connected next.',
-            ),
-            icon: const Icon(Icons.search_rounded),
-          ),
           const SizedBox(width: 8),
         ],
       ),
       body: SafeArea(
-        child: FutureBuilder<List<_DonorListItem>>(
-          future: _donorsFuture,
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            if (snapshot.hasError) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(
-                      Icons.error_outline_rounded,
-                      size: 48,
-                      color: AppColors.textGrey,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: TextField(
+                controller: _searchController,
+                onChanged: (value) {
+                  setState(() {
+                    _searchQuery = value;
+                  });
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search by donor name or mobile number',
+                  prefixIcon: const Icon(
+                    Icons.search_rounded,
+                    color: AppColors.iconPurple,
+                  ),
+                  suffixIcon: _searchQuery.trim().isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() {
+                              _searchQuery = '';
+                            });
+                          },
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                  filled: true,
+                  fillColor: AppColors.surface,
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: const BorderSide(
+                      color: AppColors.borderGrey,
+                      width: 1.2,
                     ),
-                    const SizedBox(height: 16),
-                    Text(
-                      snapshot.error.toString(),
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        color: AppColors.textGrey,
-                        fontSize: 15,
-                      ),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(18),
+                    borderSide: const BorderSide(
+                      color: AppColors.primaryPurple,
+                      width: 1.6,
                     ),
-                    const SizedBox(height: 24),
-                    FilledButton(
-                      onPressed: _refreshDonors,
-                      child: const Text('Try Again'),
-                    ),
-                  ],
+                  ),
                 ),
-              );
-            }
+              ),
+            ),
+            Expanded(
+              child: FutureBuilder<List<_DonorListItem>>(
+                future: _donorsFuture,
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-            final List<_DonorListItem> donors = snapshot.data ?? [];
-            if (donors.isEmpty) {
-              return const Center(child: Text('No donors found'));
-            }
+                  if (snapshot.hasError) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(
+                            Icons.error_outline_rounded,
+                            size: 48,
+                            color: AppColors.textGrey,
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            snapshot.error.toString(),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              color: AppColors.textGrey,
+                              fontSize: 15,
+                            ),
+                          ),
+                          const SizedBox(height: 24),
+                          FilledButton(
+                            onPressed: _refreshDonors,
+                            child: const Text('Try Again'),
+                          ),
+                        ],
+                      ),
+                    );
+                  }
 
-            return ListView.separated(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
-              itemCount: donors.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 14),
-              itemBuilder: (context, index) {
-                final donor = donors[index];
-                return _DonorCard(
-                  donor: donor,
-                  onAddReceipt: () => _handleMenuSelection(
-                    context,
-                    donor: donor,
-                    action: _DonorMenuAction.newReceipt,
-                  ),
-                  onMenuSelected: (action) => _handleMenuSelection(
-                    context,
-                    donor: donor,
-                    action: action,
-                  ),
-                );
-              },
-            );
-          },
+                  final List<_DonorListItem> donors = _filterDonors(
+                    snapshot.data ?? [],
+                  );
+                  if (donors.isEmpty) {
+                    return Center(
+                      child: Text(
+                        _searchQuery.trim().isEmpty
+                            ? 'No donors found'
+                            : 'No donors match your search',
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    itemCount: donors.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 14),
+                    itemBuilder: (context, index) {
+                      final donor = donors[index];
+                      return _DonorCard(
+                        donor: donor,
+                        onAddReceipt: () => _handleMenuSelection(
+                          context,
+                          donor: donor,
+                          action: _DonorMenuAction.newReceipt,
+                        ),
+                        onMenuSelected: (action) => _handleMenuSelection(
+                          context,
+                          donor: donor,
+                          action: action,
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

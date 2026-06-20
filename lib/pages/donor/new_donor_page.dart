@@ -39,6 +39,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
   final _pincodeController = TextEditingController();
   final _districtController = TextEditingController();
   final _organizationController = TextEditingController();
+  final _contactPersonNameController = TextEditingController();
   final _addressController = TextEditingController();
   final _mobileController = TextEditingController();
   final _whatsAppController = TextEditingController();
@@ -198,6 +199,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
     _pincodeController.dispose();
     _districtController.dispose();
     _organizationController.dispose();
+    _contactPersonNameController.dispose();
     _addressController.dispose();
     _mobileController.dispose();
     _whatsAppController.dispose();
@@ -385,8 +387,11 @@ class _NewDonorPageState extends State<NewDonorPage> {
         _voterIdController.clear();
         _drivingLicenceController.clear();
         _dependents.clear();
-      } else if (_selectedIdentityDoc == 'Aadhar') {
-        _selectedIdentityDoc = null;
+      } else {
+        _contactPersonNameController.clear();
+        if (_selectedIdentityDoc == 'Aadhar') {
+          _selectedIdentityDoc = null;
+        }
       }
     });
   }
@@ -517,6 +522,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'pincode': _pincodeController.text.trim(),
       'organization':
           _isOrganizationDonor ? _donorNameController.text.trim() : '',
+      'contactPersonName':
+          _isOrganizationDonor ? _contactPersonNameController.text.trim() : '',
       'address': _addressController.text.trim(),
       'type': _selectedDonorType ?? 0,
       'isActive': true,
@@ -1080,14 +1087,19 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             },
                           ),
                           const SizedBox(height: 16),
-                          _StyledTextField(
-                            controller: _addressController,
-                            label: _isOrganizationDonor
-                                ? 'Contact Address'
-                                : 'Address',
-                            icon: Icons.home_rounded,
-                          ),
-                          const SizedBox(height: 16),
+                          if (_isOrganizationDonor) ...[
+                            _StyledTextField(
+                              controller: _contactPersonNameController,
+                              label: 'Contact Person Name',
+                              icon: Icons.person_outline_rounded,
+                              isRequired: true,
+                              validator: (value) => _requiredValidator(
+                                value,
+                                'Contact person name is required',
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                          ],
                           _StyledTextField(
                             controller: _mobileController,
                             label: _isOrganizationDonor
@@ -1137,6 +1149,14 @@ class _NewDonorPageState extends State<NewDonorPage> {
                               ).hasMatch(input);
                               return isValid ? null : 'Enter a valid email';
                             },
+                          ),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _addressController,
+                            label: _isOrganizationDonor
+                                ? 'Contact Address'
+                                : 'Address',
+                            icon: Icons.home_rounded,
                           ),
                         ],
                       ),

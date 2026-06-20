@@ -514,11 +514,6 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
             onPressed: _refreshReceipts,
             icon: const Icon(Icons.refresh_rounded, size: 20),
           ),
-          IconButton(
-            tooltip: 'Search receipt',
-            onPressed: _openSearch,
-            icon: const Icon(Icons.search_rounded),
-          ),
         ],
       ),
       bottomNavigationBar: SafeArea(

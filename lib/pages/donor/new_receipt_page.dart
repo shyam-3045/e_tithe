@@ -1268,6 +1268,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
       'RepType': repType,
       'RepName': repName,
       'DonorName': donor.name,
+      'Mobile': '',
       'ReceiptLines': receiptLines,
     };
   }
@@ -1278,9 +1279,6 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     final List<String> errors = <String>[];
     if (_selectedPaymentMode == null) {
       errors.add('Please select Tenders.');
-    }
-    if (_notesController.text.trim().isEmpty) {
-      errors.add('Please enter Notes.');
     }
     if (errors.isNotEmpty) {
       await CommonAlert.showInfo(

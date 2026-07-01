@@ -1203,6 +1203,11 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
       widget.donorId,
     );
 
+    final String signUrl = await ReceiptService.instance.getUserSignUrl(
+      userType: user.userTypeId,
+      userId: user.userId,
+    );
+
     final DateTime now = DateTime.now();
     final String utcNow = now.toUtc().toIso8601String();
     final String paymentMonth = '${widget.month}-${widget.year}';
@@ -1253,7 +1258,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
       'RepID': user.userId,
       'Notes': notes,
       'PaymentMonth': paymentMonth,
-      'SignURL': '',
+      'SignURL': signUrl,
       'Deleted': false,
       'CreatedOn': utcNow,
       'CreatedBy': createdBy,

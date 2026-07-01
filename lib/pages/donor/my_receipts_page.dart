@@ -1369,12 +1369,15 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
         amount: widget.receipt.amount,
         donorMobile: widget.receipt.mobile,
         donorEmail: '',
+        signURL: '',
       )
     ];
   }
 
   @override
   Widget build(BuildContext context) {
+    final String signUrl =
+        _fundDetails.isNotEmpty ? _fundDetails.first.signURL.trim() : '';
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(title: const Text('Receipt View')),
@@ -1732,39 +1735,70 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
                           ),
                         ),
                       ],
-                      const Divider(height: 1),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Text(
-                              'Signature',
-                              style: TextStyle(
-                                color: AppColors.textGrey,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                            const SizedBox(height: 10),
-                            Container(
-                              height: 110,
-                              decoration: BoxDecoration(
-                                color: AppColors.background,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: AppColors.borderGrey),
-                              ),
-                              alignment: Alignment.center,
-                              child: Text(
-                                'Signature preview (TODO)',
+                      if (signUrl.isNotEmpty) ...[
+                        const Divider(height: 1),
+                        Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'Signature',
                                 style: TextStyle(
-                                  color: AppColors.textGrey.withOpacity(0.8),
-                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.textGrey,
+                                  fontWeight: FontWeight.w700,
                                 ),
                               ),
-                            ),
-                          ],
+                              const SizedBox(height: 10),
+                              Container(
+                                height: 110,
+                                width: double.infinity,
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(
+                                    color: AppColors.primaryPurple.withOpacity(0.2),
+                                    width: 1,
+                                  ),
+                                ),
+                                alignment: Alignment.center,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8.0),
+                                  child: Image.network(
+                                    signUrl,
+                                    fit: BoxFit.contain,
+                                    loadingBuilder: (context, child, loadingProgress) {
+                                      if (loadingProgress == null) return child;
+                                      return const Center(
+                                        child: SizedBox(
+                                          width: 24,
+                                          height: 24,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation<Color>(
+                                              AppColors.primaryPurple,
+                                            ),
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Text(
+                                        'Failed to load signature image.',
+                                        style: TextStyle(
+                                          color: Colors.red.shade400,
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

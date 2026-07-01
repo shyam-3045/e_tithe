@@ -300,6 +300,43 @@ class ReceiptService {
     throw Exception('Unexpected receipt number response.');
   }
 
+  Future<String> getUserSignUrl({
+    required int userType,
+    required int userId,
+  }) async {
+    try {
+      final Uri uri = ApiConfig.uri(
+        '/api/Receipt/GetUserSignUrl?userType=$userType&userId=$userId',
+      );
+      final Map<String, String> headers =
+          await AuthService.instance.authenticatedJsonHeaders();
+
+      print('[API] Fetching Sign URL: $uri');
+      final http.Response response = await _client.get(uri, headers: headers);
+      print('[API] Sign URL Response: ${response.statusCode} ${response.body}');
+
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        final String body = response.body.trim();
+        if (body.isEmpty) return '';
+        try {
+          final decoded = jsonDecode(body);
+          if (decoded is Map<String, dynamic>) {
+            return (decoded['signURL'] ?? decoded['signUrl'] ?? '').toString();
+          }
+          return decoded.toString();
+        } catch (_) {
+          if (body.startsWith('"') && body.endsWith('"') && body.length > 1) {
+            return body.substring(1, body.length - 1);
+          }
+          return body;
+        }
+      }
+    } catch (e) {
+      print('[API] Error fetching Sign URL: $e');
+    }
+    return '';
+  }
+
   Future<Map<String, dynamic>> createReceipt({
     required Map<String, dynamic> payload,
   }) async {

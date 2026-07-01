@@ -33,6 +33,13 @@ class _NewDonorPageState extends State<NewDonorPage> {
   final _passportController = TextEditingController();
   final _voterIdController = TextEditingController();
   final _drivingLicenceController = TextEditingController();
+
+  // Org identity doc controllers
+  final _gstNumberController = TextEditingController();
+  final _tanNumberController = TextEditingController();
+  final _udyamNumberController = TextEditingController();
+  final _tradeLicenseController = TextEditingController();
+  final _registrationNumberController = TextEditingController();
   final _flatBuildingController = TextEditingController();
   final _streetController = TextEditingController();
   final _cityController = TextEditingController();
@@ -75,13 +82,23 @@ class _NewDonorPageState extends State<NewDonorPage> {
   int? _selectedDonorType;
 
   String? _selectedIdentityDoc;
-  static const List<String> _identityDocOptions = [
+  static const List<String> _individualIdentityDocOptions = [
     'Aadhar',
     'PAN',
     'Passport',
     'Voter ID',
     'Driving Licence',
   ];
+  static const List<String> _orgIdentityDocOptions = [
+    'GST Number',
+    'TAN Number',
+    'Udyam Number',
+    'Trade License Number',
+    'Registration Number',
+  ];
+
+  List<String> get _identityDocOptions =>
+      _isOrganizationDonor ? _orgIdentityDocOptions : _individualIdentityDocOptions;
 
   static const List<String> _titles = ['Mr.', 'Mrs.', 'Ms.', 'Dr.'];
   static const List<String> _genders = ['Male', 'Female', 'Other'];
@@ -98,10 +115,47 @@ class _NewDonorPageState extends State<NewDonorPage> {
     'West Bengal',
   ];
 
+  String? _mobileServerError;
+  String? _whatsAppServerError;
+  String? _emailServerError;
+  String? _identityDocServerError;
+
   @override
   void initState() {
     super.initState();
     _loadUserDataAndAreas();
+
+    _mobileController.addListener(() {
+      if (_mobileServerError != null) {
+        setState(() => _mobileServerError = null);
+      }
+    });
+    _whatsAppController.addListener(() {
+      if (_whatsAppServerError != null) {
+        setState(() => _whatsAppServerError = null);
+      }
+    });
+    _emailController.addListener(() {
+      if (_emailServerError != null) {
+        setState(() => _emailServerError = null);
+      }
+    });
+
+    final void Function() clearIdentityError = () {
+      if (_identityDocServerError != null) {
+        setState(() => _identityDocServerError = null);
+      }
+    };
+    _aadharController.addListener(clearIdentityError);
+    _panController.addListener(clearIdentityError);
+    _passportController.addListener(clearIdentityError);
+    _voterIdController.addListener(clearIdentityError);
+    _drivingLicenceController.addListener(clearIdentityError);
+    _gstNumberController.addListener(clearIdentityError);
+    _tanNumberController.addListener(clearIdentityError);
+    _udyamNumberController.addListener(clearIdentityError);
+    _tradeLicenseController.addListener(clearIdentityError);
+    _registrationNumberController.addListener(clearIdentityError);
   }
 
   Future<void> _loadUserDataAndAreas() async {
@@ -193,6 +247,11 @@ class _NewDonorPageState extends State<NewDonorPage> {
     _passportController.dispose();
     _voterIdController.dispose();
     _drivingLicenceController.dispose();
+    _gstNumberController.dispose();
+    _tanNumberController.dispose();
+    _udyamNumberController.dispose();
+    _tradeLicenseController.dispose();
+    _registrationNumberController.dispose();
     _flatBuildingController.dispose();
     _streetController.dispose();
     _cityController.dispose();
@@ -312,6 +371,11 @@ class _NewDonorPageState extends State<NewDonorPage> {
     _passportController.clear();
     _voterIdController.clear();
     _drivingLicenceController.clear();
+    _gstNumberController.clear();
+    _tanNumberController.clear();
+    _udyamNumberController.clear();
+    _tradeLicenseController.clear();
+    _registrationNumberController.clear();
   }
 
   TextEditingController get _selectedIdentityController {
@@ -324,6 +388,16 @@ class _NewDonorPageState extends State<NewDonorPage> {
         return _voterIdController;
       case 'Driving Licence':
         return _drivingLicenceController;
+      case 'GST Number':
+        return _gstNumberController;
+      case 'TAN Number':
+        return _tanNumberController;
+      case 'Udyam Number':
+        return _udyamNumberController;
+      case 'Trade License Number':
+        return _tradeLicenseController;
+      case 'Registration Number':
+        return _registrationNumberController;
       case 'Aadhar':
       case null:
       default:
@@ -341,6 +415,16 @@ class _NewDonorPageState extends State<NewDonorPage> {
         return 'Voter ID';
       case 'Driving Licence':
         return 'Driving Licence';
+      case 'GST Number':
+        return 'GST Number';
+      case 'TAN Number':
+        return 'TAN Number';
+      case 'Udyam Number':
+        return 'Udyam Number';
+      case 'Trade License Number':
+        return 'Trade License Number';
+      case 'Registration Number':
+        return 'Registration Number';
       case 'Aadhar':
       case null:
       default:
@@ -363,6 +447,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
       case 'Aadhar':
       case null:
         return TextCapitalization.none;
+      case 'GST Number':
+      case 'TAN Number':
+        return TextCapitalization.characters;
       default:
         return TextCapitalization.characters;
     }
@@ -379,14 +466,12 @@ class _NewDonorPageState extends State<NewDonorPage> {
       if (value == 2) {
         _selectedGender = null;
         _selectedMaritalStatus = null;
+        _selectedTitle = null;
         _birthDateController.clear();
         _weddingDateController.clear();
-        _panController.clear();
-        _passportController.clear();
-        _voterIdController.clear();
-        _drivingLicenceController.clear();
         _dependents.clear();
       } else {
+        _selectedTitle = 'Mr.';
         _contactPersonNameController.clear();
       }
       _selectedIdentityDoc = null;
@@ -454,44 +539,31 @@ class _NewDonorPageState extends State<NewDonorPage> {
       }
     }
 
-    // Determine areaLeaderID / promotionStaffID based on userTypeName
-    final String userTypeLower = (_userData?.userTypeName ?? '').toLowerCase();
+    // Determine role IDs based on userTypeID
+    // 1 = Area Leader, 2 = Promotion Staff, 3 = Field Staff, 4 = Local Unit
+    final int userTypeID = _userData?.userTypeID ?? 0;
     final int currentUserId = _userData?.userID ?? 0;
-    final int areaLeaderId =
-        (userTypeLower.contains('area') && userTypeLower.contains('leader'))
-            ? currentUserId
-            : 0;
-    final int promotionStaffId =
-        (userTypeLower.contains('field') && userTypeLower.contains('staff')) ||
-                userTypeLower.contains('promo') ||
-                userTypeLower.contains('promotional') ||
-                userTypeLower.contains('promotion')
-            ? currentUserId
-            : 0;
-    final int localMemberId = (userTypeLower.contains('local') &&
-                userTypeLower.contains('member')) ||
-            (userTypeLower.contains('local') && userTypeLower.contains('unit'))
-        ? currentUserId
-        : 0;
+    final int areaLeaderId = userTypeID == 1 ? currentUserId : 0;
+    final int promotionStaffId = userTypeID == 2 ? currentUserId : 0;
+    final int fieldStaffId = userTypeID == 3 ? currentUserId : 0;
+    final int localMemberId = userTypeID == 4 ? currentUserId : 0;
 
     return <String, dynamic>{
       'donorID': 0,
       'donorName': _donorNameController.text.trim(),
       'photo': '',
-      'panNumber': _isOrganizationDonor
-          ? (_selectedIdentityDoc == 'PAN' ? _panController.text.trim() : '')
-          : (_selectedIdentityDoc == 'PAN' ? _panController.text.trim() : ''),
-      'aadhaarNumber':
-          _selectedIdentityDoc == 'Aadhar' ? _aadharController.text.trim() : '',
-      'passport': _selectedIdentityDoc == 'Passport'
-          ? _passportController.text.trim()
-          : '',
-      'voterID': _selectedIdentityDoc == 'Voter ID'
-          ? _voterIdController.text.trim()
-          : '',
-      'drivingLicence': _selectedIdentityDoc == 'Driving Licence'
-          ? _drivingLicenceController.text.trim()
-          : '',
+      // Individual identity docs
+      'panNumber': _selectedIdentityDoc == 'PAN' ? _panController.text.trim() : '',
+      'aadhaarNumber': _selectedIdentityDoc == 'Aadhar' ? _aadharController.text.trim() : '',
+      'passport': _selectedIdentityDoc == 'Passport' ? _passportController.text.trim() : '',
+      'voterID': _selectedIdentityDoc == 'Voter ID' ? _voterIdController.text.trim() : '',
+      'drivingLicence': _selectedIdentityDoc == 'Driving Licence' ? _drivingLicenceController.text.trim() : '',
+      // Org identity docs
+      'gstNumber': _selectedIdentityDoc == 'GST Number' ? _gstNumberController.text.trim() : '',
+      'tanNumber': _selectedIdentityDoc == 'TAN Number' ? _tanNumberController.text.trim() : '',
+      'udyamNumber': _selectedIdentityDoc == 'Udyam Number' ? _udyamNumberController.text.trim() : '',
+      'tradeLicenseNumber': _selectedIdentityDoc == 'Trade License Number' ? _tradeLicenseController.text.trim() : '',
+      'registrationNumber': _selectedIdentityDoc == 'Registration Number' ? _registrationNumberController.text.trim() : '',
       'birthDate': _isOrganizationDonor
           ? null
           : _toApiDateString(_parseUiDate(_birthDateController.text)),
@@ -502,6 +574,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'gender': _isOrganizationDonor ? '' : (_selectedGender ?? '').trim(),
       'maritalStatus':
           _isOrganizationDonor ? '' : (_selectedMaritalStatus ?? '').trim(),
+      'salutation': _isOrganizationDonor ? '' : (_selectedTitle ?? '').trim(),
       'regionID': _userData?.regionID ?? 0,
       'areaID': selectedAreaId,
       'userType': _toApiUserType(_userData?.userTypeName ?? ''),
@@ -520,6 +593,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'contactPersonName':
           _isOrganizationDonor ? _contactPersonNameController.text.trim() : '',
       'address': _addressController.text.trim(),
+      'addressLine2': '',
+      'country': '',
+      'areaName': _selectedArea ?? '',
       'type': _selectedDonorType ?? 0,
       'isActive': true,
       'deleted': false,
@@ -529,6 +605,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'modifiedBy': 'mobile-app',
       'areaLeaderID': areaLeaderId,
       'promotionStaffID': promotionStaffId,
+      'fieldStaffID': fieldStaffId,
+      'localMemberID': localMemberId,
       'dependents': _isOrganizationDonor
           ? <Map<String, dynamic>>[]
           : _dependents.map((d) => d.toJson()).toList(),
@@ -582,14 +660,90 @@ class _NewDonorPageState extends State<NewDonorPage> {
       return;
     }
 
-    if (!_formKey.currentState!.validate()) {
+    final List<String> validationErrors = [];
+
+    if (_isOrganizationDonor) {
+      if (_organizationController.text.trim().isEmpty) {
+        validationErrors.add('Organization Name is required');
+      }
+    } else {
+      if (_donorNameController.text.trim().isEmpty) {
+        validationErrors.add('Donor Name is required');
+      }
+    }
+
+    if (_selectedIdentityDoc == null || _selectedIdentityDoc!.isEmpty) {
+      validationErrors.add('Identity Document Type is required');
+    } else {
+      final String idVal = _selectedIdentityController.text.trim();
+      if (idVal.isEmpty) {
+        validationErrors.add('$_selectedIdentityLabel is required');
+      } else {
+        if (_selectedIdentityDoc == 'Aadhar' && idVal.length != 12) {
+          validationErrors.add('Aadhar must be exactly 12 digits');
+        } else if (_selectedIdentityDoc == 'PAN' && idVal.length != 10) {
+          validationErrors.add('PAN must be exactly 10 characters');
+        } else if (_selectedIdentityDoc == 'GST Number' && idVal.length != 15) {
+          validationErrors.add('GST Number must be exactly 15 characters');
+        } else if (_selectedIdentityDoc == 'TAN Number' && idVal.length != 10) {
+          validationErrors.add('TAN Number must be exactly 10 characters');
+        }
+      }
+    }
+
+    final String mobVal = _mobileController.text.trim();
+    if (mobVal.isEmpty) {
+      validationErrors.add('Mobile number is required');
+    } else if (mobVal.length < 10) {
+      validationErrors.add('Enter a valid 10-digit mobile number');
+    }
+
+    final String emailVal = _emailController.text.trim();
+    if (emailVal.isEmpty) {
+      validationErrors.add('Email is required');
+    } else {
+      final bool isValid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(emailVal);
+      if (!isValid) {
+        validationErrors.add('Enter a valid email address');
+      }
+    }
+
+    if (_flatBuildingController.text.trim().isEmpty) {
+      validationErrors.add('Flat/Building is required');
+    }
+    if (_cityController.text.trim().isEmpty) {
+      validationErrors.add('City is required');
+    }
+    if (_districtController.text.trim().isEmpty) {
+      validationErrors.add('District is required');
+    }
+    if (_selectedState == null || _selectedState!.isEmpty) {
+      validationErrors.add('State is required');
+    }
+
+    final String pinVal = _pincodeController.text.trim();
+    if (pinVal.isEmpty) {
+      validationErrors.add('Pincode is required');
+    } else if (pinVal.length < 6) {
+      validationErrors.add('Enter a valid 6-digit pincode');
+    }
+
+    if (_selectedArea == null || _selectedArea!.isEmpty) {
+      validationErrors.add('Area is required');
+    }
+
+    if (validationErrors.isNotEmpty) {
       setState(() {
         _personalExpanded = true;
         _addressExpanded = true;
         _dependentsExpanded = true;
       });
+      _formKey.currentState!.validate();
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill all required fields.')),
+        SnackBar(
+          content: Text(validationErrors.join('\n')),
+          duration: const Duration(seconds: 4),
+        ),
       );
       return;
     }
@@ -645,6 +799,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
       final response = await _submitDonor(payload);
       print('[API] Response status: ${response.statusCode}');
       print('[API] Response body: ${response.body}');
+      print('[API] Response headers: ${response.headers}');
 
       if (!mounted) return;
 
@@ -689,6 +844,77 @@ class _NewDonorPageState extends State<NewDonorPage> {
           MaterialPageRoute<void>(
             builder: (_) => const DonorCreationSuccessPage(),
           ),
+        );
+        return;
+      }
+
+      if (response.statusCode == 400) {
+        String msg = '';
+        try {
+          final decoded = jsonDecode(response.body);
+          if (decoded is Map<String, dynamic>) {
+            msg = (decoded['message'] ?? decoded['error'] ?? '').toString();
+          }
+        } catch (_) {}
+
+        if (msg.isEmpty) {
+          msg = response.body;
+        }
+
+        final String lowerMsg = msg.toLowerCase();
+        bool foundDuplicate = false;
+
+        if (lowerMsg.contains('mobile')) {
+          _mobileServerError = 'Another donor already exists with this mobile';
+          foundDuplicate = true;
+        }
+        if (lowerMsg.contains('whatsapp')) {
+          _whatsAppServerError = 'Another donor already exists with this WhatsApp number';
+          foundDuplicate = true;
+        }
+        if (lowerMsg.contains('email')) {
+          _emailServerError = 'Another donor already exists with this email';
+          foundDuplicate = true;
+        }
+        if (lowerMsg.contains('aadhar') || lowerMsg.contains('aadhaar')) {
+          _identityDocServerError = 'Another donor already exists with this Aadhar';
+          foundDuplicate = true;
+        }
+        if (lowerMsg.contains('pan')) {
+          _identityDocServerError = 'Another donor already exists with this PAN';
+          foundDuplicate = true;
+        }
+        if (lowerMsg.contains('gst')) {
+          _identityDocServerError = 'Another donor already exists with this GST number';
+          foundDuplicate = true;
+        }
+        if (lowerMsg.contains('tan')) {
+          _identityDocServerError = 'Another donor already exists with this TAN number';
+          foundDuplicate = true;
+        }
+        if (lowerMsg.contains('udyam')) {
+          _identityDocServerError = 'Another donor already exists with this Udyam number';
+          foundDuplicate = true;
+        }
+        if (lowerMsg.contains('trade license') || lowerMsg.contains('license')) {
+          _identityDocServerError = 'Another donor already exists with this Trade License';
+          foundDuplicate = true;
+        }
+        if (lowerMsg.contains('registration')) {
+          _identityDocServerError = 'Another donor already exists with this Registration number';
+          foundDuplicate = true;
+        }
+
+        if (foundDuplicate) {
+          _formKey.currentState?.validate();
+        }
+
+        await CommonAlert.showInfo(
+          context,
+          title: 'Duplicate Donor',
+          message: msg.isNotEmpty
+              ? msg
+              : 'Another donor already exists with the same details.',
         );
         return;
       }
@@ -879,10 +1105,38 @@ class _NewDonorPageState extends State<NewDonorPage> {
                               textCapitalization:
                                   _selectedIdentityCapitalization,
                               isRequired: true,
-                              validator: (value) => _requiredValidator(
-                                value,
-                                '$_selectedIdentityLabel is required',
-                              ),
+                              validator: (value) {
+                                if (_identityDocServerError != null) {
+                                  return _identityDocServerError;
+                                }
+                                final String input = (value ?? '').trim();
+                                if (input.isEmpty) {
+                                  return '$_selectedIdentityLabel is required';
+                                }
+                                switch (_selectedIdentityDoc) {
+                                  case 'Aadhar':
+                                    if (input.length != 12) {
+                                      return 'Aadhar must be exactly 12 digits';
+                                    }
+                                    break;
+                                  case 'PAN':
+                                    if (input.length != 10) {
+                                      return 'PAN must be exactly 10 characters';
+                                    }
+                                    break;
+                                  case 'GST Number':
+                                    if (input.length != 15) {
+                                      return 'GST Number must be exactly 15 characters';
+                                    }
+                                    break;
+                                  case 'TAN Number':
+                                    if (input.length != 10) {
+                                      return 'TAN Number must be exactly 10 characters';
+                                    }
+                                    break;
+                                }
+                                return null;
+                              },
                             ),
                           ],
                           if (!_isOrganizationDonor) ...[
@@ -1108,6 +1362,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             isRequired: true,
                             keyboardType: TextInputType.phone,
                             validator: (value) {
+                              if (_mobileServerError != null) {
+                                return _mobileServerError;
+                              }
                               final String? error = _requiredValidator(
                                 value,
                                 'Mobile number is required',
@@ -1129,6 +1386,12 @@ class _NewDonorPageState extends State<NewDonorPage> {
                                 : 'WhatsApp No',
                             icon: Icons.message_outlined,
                             keyboardType: TextInputType.phone,
+                            validator: (value) {
+                              if (_whatsAppServerError != null) {
+                                return _whatsAppServerError;
+                              }
+                              return null;
+                            },
                           ),
                           const SizedBox(height: 16),
                           _StyledTextField(
@@ -1140,6 +1403,9 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             isRequired: true,
                             keyboardType: TextInputType.emailAddress,
                             validator: (value) {
+                              if (_emailServerError != null) {
+                                return _emailServerError;
+                              }
                               final String input = (value ?? '').trim();
                               if (input.isEmpty) {
                                 return 'Email is required';

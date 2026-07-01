@@ -531,21 +531,14 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     final DonorDetails? donor = _loadedDonor;
     final UserData? user = _userData;
     final String updatedBy = user?.userName ?? 'mobile-app';
-    final String userTypeLower = (user?.userTypeName ?? '').toLowerCase();
+    // Determine role IDs based on userTypeID
+    // 1 = Area Leader, 2 = Promotion Staff, 3 = Field Staff, 4 = Local Unit
+    final int userTypeID = user?.userTypeID ?? 0;
     final int currentUserId = user?.userID ?? 0;
-    final int areaLeaderId =
-        (userTypeLower.contains('area') && userTypeLower.contains('leader'))
-            ? currentUserId
-            : 0;
-    final int promotionStaffId = (userTypeLower.contains('promo') ||
-            userTypeLower.contains('promotional') ||
-            userTypeLower.contains('promotion'))
-        ? currentUserId
-        : 0;
-    final int localMemberId =
-        (userTypeLower.contains('local') && userTypeLower.contains('member'))
-            ? currentUserId
-            : 0;
+    final int areaLeaderId = userTypeID == 1 ? currentUserId : 0;
+    final int promotionStaffId = userTypeID == 2 ? currentUserId : 0;
+    final int fieldStaffId = userTypeID == 3 ? currentUserId : 0;
+    final int localMemberId = userTypeID == 4 ? currentUserId : 0;
 
     final Map<String, _DependentDraft> mergedDependents =
         <String, _DependentDraft>{};
@@ -616,6 +609,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       'areaID': _selectedAreaId,
       'areaLeaderID': areaLeaderId,
       'promotionStaffID': promotionStaffId,
+      'fieldStaffID': fieldStaffId,
       'localMemberID': localMemberId,
       'mobile': _mobileController.text.trim(),
       'whatsAppNumber': _whatsAppController.text.trim(),

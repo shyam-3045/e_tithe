@@ -19,6 +19,7 @@ class AuthSession {
     required this.userTypeId,
     required this.isActive,
     required this.message,
+    required this.mobileNumber,
   });
 
   factory AuthSession.fromJson(Map<String, dynamic> json) {
@@ -38,6 +39,7 @@ class AuthSession {
           : int.tryParse(userTypeId?.toString() ?? ''),
       isActive: isActive is bool ? isActive : _parseBool(isActive),
       message: json['message'] as String?,
+      mobileNumber: json['mobileNumber'] as String?,
     );
   }
 
@@ -51,6 +53,7 @@ class AuthSession {
   final int? userTypeId;
   final bool? isActive;
   final String? message;
+  final String? mobileNumber;
 
   Map<String, dynamic> toJson() {
     return <String, dynamic>{
@@ -64,6 +67,7 @@ class AuthSession {
       'userTypeId': userTypeId,
       'isActive': isActive,
       'message': message,
+      'mobileNumber': mobileNumber,
     };
   }
 

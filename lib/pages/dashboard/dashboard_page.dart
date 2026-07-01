@@ -85,6 +85,7 @@ class _DashboardPageState extends State<DashboardPage> {
         final AuthSession? session = snapshot.data;
         final String userName = _displayName(session);
         final String role = _displayRole(session);
+        final String mobileNumber = (session?.mobileNumber ?? '').trim();
 
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: const SystemUiOverlayStyle(
@@ -113,7 +114,7 @@ class _DashboardPageState extends State<DashboardPage> {
                     const Text('e-Tithe'),
                     const SizedBox(height: 2),
                     Text(
-                      '$userName  -  [$role]',
+                      mobileNumber.isNotEmpty ? '$userName  -  $mobileNumber' : '$userName  -  [$role]',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 17,

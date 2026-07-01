@@ -19,6 +19,7 @@ class ReceiptRecord {
     required this.amount,
     required this.fundType,
     required this.isCancelled,
+    required this.mobile,
     this.notes = '',
   });
 
@@ -66,9 +67,15 @@ class ReceiptRecord {
         fallback: 'General Donation',
       ),
       isCancelled: _parseBool(
-            json['isCancelled'] ?? json['cancelled'] ?? json['isActive'],
+            json['isCancelled'] ??
+                json['cancelled'] ??
+                json['cancel'] ??
+                json['isCancelledReceipt'],
           ) ??
           false,
+      mobile: _string(
+        json['mobile'] ?? json['mobileNumber'] ?? json['phone'],
+      ),
       notes: _string(
         json['notes'] ?? json['note'] ?? json['remarks'] ?? json['message'],
       ),
@@ -86,6 +93,7 @@ class ReceiptRecord {
   final double amount;
   final String fundType;
   final bool isCancelled;
+  final String mobile;
   final String notes;
 
   static int _parseInt(Object? value) {
@@ -185,6 +193,8 @@ class ReceiptFundDetail {
     required this.mobile,
     required this.fundName,
     required this.amount,
+    required this.donorMobile,
+    required this.donorEmail,
   });
 
   factory ReceiptFundDetail.fromJson(Map<String, dynamic> json) {
@@ -199,6 +209,8 @@ class ReceiptFundDetail {
       fundName:
           _string(json['fundName'] ?? json['fundType'] ?? json['particulars']),
       amount: _parseDouble(json['amount']),
+      donorMobile: _string(json['donorMobile'] ?? json['donorPhone']),
+      donorEmail: _string(json['donorEmail']),
     );
   }
 
@@ -211,6 +223,8 @@ class ReceiptFundDetail {
   final String mobile;
   final String fundName;
   final double amount;
+  final String donorMobile;
+  final String donorEmail;
 
   static int _parseInt(Object? value) {
     if (value is int) return value;

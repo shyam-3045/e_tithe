@@ -14,6 +14,8 @@ class ReceiptExportData {
     required this.monthLabel,
     required this.notes,
     required this.fundDetails,
+    required this.donorMobile,
+    required this.donorEmail,
   });
 
   final int receiptId;
@@ -28,6 +30,8 @@ class ReceiptExportData {
   final String monthLabel;
   final String notes;
   final List<ReceiptFundDetail> fundDetails;
+  final String donorMobile;
+  final String donorEmail;
 }
 
 class ReceiptExportService {

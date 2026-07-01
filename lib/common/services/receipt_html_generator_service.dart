@@ -34,6 +34,8 @@ class ReceiptHtmlGeneratorService {
               amount: double.tryParse(
                       data.amount.replaceAll(RegExp(r'[^0-9.]'), '')) ??
                   0.0,
+              donorMobile: data.donorMobile,
+              donorEmail: data.donorEmail,
             )
           ];
 
@@ -152,7 +154,13 @@ class ReceiptHtmlGeneratorService {
                 <div class="meta-left">
                     <div>Received with thanks from <span class="value">${_escapeHtml(data.donorName)}</span></div>
                     <div class="field-label">Address:</div>
-                    <div>${_escapeHtml(donorAddress)}</div>
+                    <div>${_escapeHtml(donorAddress.isNotEmpty ? donorAddress : 'N/A')}</div>
+                    <div style="margin-top: 6px; font-size: 8px; line-height: 1.35;">
+                      <span style="font-weight: bold;">Email:</span> ${_escapeHtml(data.donorEmail.isNotEmpty ? data.donorEmail : 'N/A')}
+                    </div>
+                    <div style="margin-top: 4px; font-size: 8px; line-height: 1.35;">
+                      <span style="font-weight: bold;">Mobile:</span> ${_escapeHtml(data.donorMobile.isNotEmpty ? data.donorMobile : 'N/A')}
+                    </div>
                 </div>
                 <div class="meta-right">
                     <div class="info-box">

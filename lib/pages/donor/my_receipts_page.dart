@@ -371,6 +371,13 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
 
   ReceiptExportData _toExportData(
       _ReceiptItem item, List<ReceiptFundDetail> fundDetails) {
+    final String donorMobile = fundDetails.isNotEmpty
+        ? fundDetails.first.donorMobile
+        : item.mobile;
+    final String donorEmail = fundDetails.isNotEmpty
+        ? fundDetails.first.donorEmail
+        : '';
+
     return ReceiptExportData(
       receiptId: item.receiptId,
       receiptNo: item.receiptNo,
@@ -384,6 +391,8 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
       monthLabel: item.monthLabel,
       notes: item.notes,
       fundDetails: fundDetails,
+      donorMobile: donorMobile.trim(),
+      donorEmail: donorEmail.trim(),
     );
   }
 
@@ -642,6 +651,7 @@ class _ReceiptItem {
     required this.mode,
     required this.amount,
     required this.fundType,
+    required this.mobile,
     this.isCancelled = false,
     this.notes = '',
   });
@@ -658,6 +668,7 @@ class _ReceiptItem {
       mode: _parseMode(record.paymentMode),
       amount: record.amount,
       fundType: record.fundType,
+      mobile: record.mobile,
       isCancelled: record.isCancelled,
       notes: record.notes.trim(),
     );
@@ -681,6 +692,7 @@ class _ReceiptItem {
   final _ReceiptMode mode;
   final double amount;
   final String fundType;
+  final String mobile;
   final bool isCancelled;
   final String notes;
 }
@@ -736,31 +748,57 @@ class _ReceiptCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.textDark,
-                        fontSize: 18,
+                        fontSize: 15,
                         fontWeight: FontWeight.w900,
                         letterSpacing: 0.2,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 5,
-                    ),
-                    decoration: BoxDecoration(
-                      color: modeColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      item.mode.listLabel,
-                      style: TextStyle(
-                        color: modeColor,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w900,
-                        letterSpacing: 0.7,
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    alignment: WrapAlignment.end,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: modeColor.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          item.mode.listLabel,
+                          style: TextStyle(
+                            color: modeColor,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.7,
+                          ),
+                        ),
                       ),
-                    ),
+                      if (item.isCancelled)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 5,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.red.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: const Text(
+                            'CANCELLED',
+                            style: TextStyle(
+                              color: Colors.red,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w900,
+                              letterSpacing: 0.7,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -770,12 +808,14 @@ class _ReceiptCard extends StatelessWidget {
                 children: [
                   Expanded(
                     child: Text(
-                      item.donorDisplayName,
+                      item.mobile.isNotEmpty
+                          ? '${item.donorDisplayName} - ${item.mobile}'
+                          : item.donorDisplayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         color: AppColors.primaryPurple,
-                        fontSize: 18,
+                        fontSize: 15,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -787,7 +827,7 @@ class _ReceiptCard extends StatelessWidget {
                       color: item.isCancelled
                           ? AppColors.textGrey
                           : AppColors.textDark,
-                      fontSize: 18,
+                      fontSize: 15,
                       fontWeight: FontWeight.w900,
                     ),
                   ),
@@ -1327,6 +1367,8 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
         mobile: '',
         fundName: widget.receipt.fundType,
         amount: widget.receipt.amount,
+        donorMobile: widget.receipt.mobile,
+        donorEmail: '',
       )
     ];
   }
@@ -1496,6 +1538,7 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
                     ),
                   ),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Container(
                         width: double.infinity,
@@ -1531,6 +1574,12 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
                       _ReceiptLine(
                         icon: Icons.grid_view_rounded,
                         label: widget.receipt.monthLabel,
+                      ),
+                      _ReceiptLine(
+                        icon: Icons.phone_android_rounded,
+                        label: widget.receipt.mobile.isNotEmpty
+                            ? widget.receipt.mobile
+                            : 'N/A',
                       ),
                       Padding(
                         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
@@ -1592,13 +1641,45 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
                                       ),
                                     )),
                               const SizedBox(height: 8),
-                              Text(
-                                'Payed as :${widget.receipt.mode == _ReceiptMode.cash ? 'CASH' : 'BANK'}',
-                                style: const TextStyle(
-                                  color: AppColors.primaryPurple,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                ),
+                               Row(
+                                children: [
+                                  Text(
+                                    'Payed as : ${widget.receipt.mode == _ReceiptMode.cash ? 'CASH' : 'BANK'}',
+                                    style: const TextStyle(
+                                      color: AppColors.primaryPurple,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  if (widget.receipt.isCancelled) ...[
+                                    const SizedBox(width: 10),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                        vertical: 3,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Colors.red.withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(color: Colors.red, width: 1),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'CANCELLED',
+                                            style: TextStyle(
+                                              color: Colors.red,
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w900,
+                                              letterSpacing: 0.5,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ],
                           ),
@@ -1629,12 +1710,22 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
                                   fontWeight: FontWeight.w700,
                                 ),
                               ),
-                              const SizedBox(height: 6),
-                              Text(
-                                widget.receipt.notes,
-                                style: const TextStyle(
-                                  color: AppColors.textGrey,
-                                  fontWeight: FontWeight.w600,
+                              const SizedBox(height: 10),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: AppColors.background,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: AppColors.borderGrey),
+                                ),
+                                child: Text(
+                                  widget.receipt.notes,
+                                  style: const TextStyle(
+                                    color: AppColors.textGrey,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
                                 ),
                               ),
                             ],

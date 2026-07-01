@@ -64,6 +64,8 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
             amount: double.tryParse(
                     data.amount.replaceAll(RegExp(r'[^0-9.]'), '')) ??
                 0.0,
+            donorMobile: data.donorMobile,
+            donorEmail: data.donorEmail,
           ),
         ];
   final ReceiptFundDetail companyDetail = _resolveCompanyDetail(pdfDetails);
@@ -293,7 +295,7 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                                   fontWeight: pw.FontWeight.bold,
                                 ),
                               ),
-                              pw.SizedBox(height: 8),
+                              pw.SizedBox(height: 6),
                               pw.Text(
                                 'Address:',
                                 style: pw.TextStyle(
@@ -302,8 +304,44 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                                 ),
                               ),
                               pw.Text(
-                                donorAddress,
+                                donorAddress.isNotEmpty ? donorAddress : 'N/A',
                                 style: const pw.TextStyle(fontSize: 8.0),
+                              ),
+                              pw.SizedBox(height: 6),
+                              pw.RichText(
+                                text: pw.TextSpan(
+                                  children: [
+                                    pw.TextSpan(
+                                      text: 'Email: ',
+                                      style: pw.TextStyle(
+                                        fontSize: 8.0,
+                                        fontWeight: pw.FontWeight.bold,
+                                      ),
+                                    ),
+                                    pw.TextSpan(
+                                      text: data.donorEmail.isNotEmpty ? data.donorEmail : 'N/A',
+                                      style: const pw.TextStyle(fontSize: 8.0),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              pw.SizedBox(height: 4),
+                              pw.RichText(
+                                text: pw.TextSpan(
+                                  children: [
+                                    pw.TextSpan(
+                                      text: 'Mobile: ',
+                                      style: pw.TextStyle(
+                                        fontSize: 8.0,
+                                        fontWeight: pw.FontWeight.bold,
+                                      ),
+                                    ),
+                                    pw.TextSpan(
+                                      text: data.donorMobile.isNotEmpty ? data.donorMobile : 'N/A',
+                                      style: const pw.TextStyle(fontSize: 8.0),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                           ),

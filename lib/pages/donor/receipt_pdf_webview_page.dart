@@ -66,6 +66,7 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                 0.0,
             donorMobile: data.donorMobile,
             donorEmail: data.donorEmail,
+            signURL: '',
           ),
         ];
   final ReceiptFundDetail companyDetail = _resolveCompanyDetail(pdfDetails);

@@ -195,6 +195,7 @@ class ReceiptFundDetail {
     required this.amount,
     required this.donorMobile,
     required this.donorEmail,
+    required this.signURL,
   });
 
   factory ReceiptFundDetail.fromJson(Map<String, dynamic> json) {
@@ -211,6 +212,7 @@ class ReceiptFundDetail {
       amount: _parseDouble(json['amount']),
       donorMobile: _string(json['donorMobile'] ?? json['donorPhone']),
       donorEmail: _string(json['donorEmail']),
+      signURL: _string(json['signURL'] ?? json['signUrl']),
     );
   }
 
@@ -225,6 +227,7 @@ class ReceiptFundDetail {
   final double amount;
   final String donorMobile;
   final String donorEmail;
+  final String signURL;
 
   static int _parseInt(Object? value) {
     if (value is int) return value;

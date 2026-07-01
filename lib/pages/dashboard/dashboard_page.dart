@@ -103,7 +103,11 @@ class _DashboardPageState extends State<DashboardPage> {
               await SystemNavigator.pop();
             },
             child: Scaffold(
-              drawer: _DashboardDrawer(userName: userName, role: role),
+              drawer: _DashboardDrawer(
+                userName: userName,
+                role: role,
+                mobileNumber: mobileNumber,
+              ),
               appBar: AppBar(
                 toolbarHeight: 78,
                 titleSpacing: 0,
@@ -212,10 +216,15 @@ class _DashboardPageState extends State<DashboardPage> {
 }
 
 class _DashboardDrawer extends StatelessWidget {
-  const _DashboardDrawer({required this.userName, required this.role});
+  const _DashboardDrawer({
+    required this.userName,
+    required this.role,
+    required this.mobileNumber,
+  });
 
   final String userName;
   final String role;
+  final String mobileNumber;
 
   @override
   Widget build(BuildContext context) {
@@ -257,7 +266,7 @@ class _DashboardDrawer extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    role,
+                    mobileNumber.isNotEmpty ? mobileNumber : role,
                     style: const TextStyle(
                       color: AppColors.lavender,
                       fontSize: 14,

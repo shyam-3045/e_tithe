@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:http/http.dart' as http;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -94,6 +95,21 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
     pincode: data.pincode,
   );
 
+  final String signUrl = pdfDetails.isNotEmpty ? pdfDetails.first.signURL.trim() : '';
+  pw.MemoryImage? signatureImage;
+  if (signUrl.isNotEmpty) {
+    try {
+      final http.Response response = await http
+          .get(Uri.parse(signUrl))
+          .timeout(const Duration(seconds: 5));
+      if (response.statusCode == 200) {
+        signatureImage = pw.MemoryImage(response.bodyBytes);
+      }
+    } catch (e) {
+      print('[PDF] Error downloading signature image: $e');
+    }
+  }
+
   final List<pw.TableRow> tableRows = [
     pw.TableRow(
       decoration: const pw.BoxDecoration(
@@ -101,10 +117,10 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
       ),
       children: [
         pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 6),
+          padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           child: pw.Text(
             'Particulars',
-            textAlign: pw.TextAlign.center,
+            textAlign: pw.TextAlign.left,
             style: pw.TextStyle(
               fontSize: 9.5,
               fontWeight: pw.FontWeight.bold,
@@ -112,10 +128,10 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
           ),
         ),
         pw.Padding(
-          padding: const pw.EdgeInsets.symmetric(vertical: 6),
+          padding: const pw.EdgeInsets.symmetric(horizontal: 6, vertical: 6),
           child: pw.Text(
             'Amount (Rs.)',
-            textAlign: pw.TextAlign.center,
+            textAlign: pw.TextAlign.right,
             style: pw.TextStyle(
               fontSize: 9.5,
               fontWeight: pw.FontWeight.bold,
@@ -365,24 +381,24 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                   ],
                 ),
               ),
-              pw.Table(
-                border: const pw.TableBorder(
-                  top: pw.BorderSide(color: _receiptLineColor, width: 1),
-                  bottom: pw.BorderSide(color: _receiptLineColor, width: 1),
-                  verticalInside: pw.BorderSide(
-                    color: _receiptLineColor,
-                    width: 1,
-                  ),
-                  horizontalInside: pw.BorderSide(
-                    color: _receiptLineColor,
-                    width: 1,
+              pw.Container(
+                padding: const pw.EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 10,
+                ),
+                decoration: const pw.BoxDecoration(
+                  border: pw.Border(
+                    bottom: pw.BorderSide(color: _receiptLineColor, width: 1),
                   ),
                 ),
-                columnWidths: const {
-                  0: pw.FlexColumnWidth(3.2),
-                  1: pw.FlexColumnWidth(1.4),
-                },
-                children: tableRows,
+                child: pw.Table(
+                  border: pw.TableBorder.all(color: _receiptLineColor, width: 1),
+                  columnWidths: const {
+                    0: pw.FlexColumnWidth(66),
+                    1: pw.FlexColumnWidth(34),
+                  },
+                  children: tableRows,
+                ),
               ),
               pw.Container(
                 padding: const pw.EdgeInsets.symmetric(
@@ -430,6 +446,30 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                   ),
                 ),
               ),
+              if (data.notes.isNotEmpty)
+                pw.Container(
+                  padding: const pw.EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 9,
+                  ),
+                  decoration: const pw.BoxDecoration(
+                    border: pw.Border(
+                      bottom: pw.BorderSide(color: _receiptLineColor, width: 1),
+                    ),
+                  ),
+                  child: pw.RichText(
+                    text: pw.TextSpan(
+                      style: const pw.TextStyle(fontSize: 8.4),
+                      children: [
+                        pw.TextSpan(
+                          text: 'Notes: ',
+                          style: pw.TextStyle(fontWeight: pw.FontWeight.bold),
+                        ),
+                        pw.TextSpan(text: data.notes),
+                      ],
+                    ),
+                  ),
+                ),
               pw.Expanded(
                 child: pw.Container(
                   padding: const pw.EdgeInsets.fromLTRB(10, 14, 10, 14),
@@ -448,8 +488,19 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                           'for Scripture Union & CSSM council of India',
                           style: const pw.TextStyle(fontSize: 8.3),
                         ),
+                        if (signatureImage != null)
+                          pw.Padding(
+                            padding: const pw.EdgeInsets.only(top: 4, bottom: 2),
+                            child: pw.SizedBox(
+                              width: 100,
+                              height: 35,
+                              child: pw.Image(signatureImage, fit: pw.BoxFit.contain),
+                            ),
+                          )
+                        else
+                          pw.SizedBox(height: 24),
                         pw.Container(
-                          margin: const pw.EdgeInsets.only(top: 24),
+                          margin: const pw.EdgeInsets.only(top: 2),
                           width: 140,
                           decoration: const pw.BoxDecoration(
                             border: pw.Border(

@@ -66,6 +66,11 @@ class ReceiptHtmlGeneratorService {
       pincode: data.pincode,
     );
 
+    final String signUrl = details.isNotEmpty ? details.first.signURL.trim() : '';
+    final String signatureImgTag = signUrl.isNotEmpty
+        ? '<div style="margin: 4px auto 2px; text-align: center;"><img src="$signUrl" style="max-height: 35px; max-width: 100px; object-fit: contain;" /></div>'
+        : '<div style="height: 24px;"></div>';
+
     final String tableRows = details.map((detail) {
       final String detailAmount = 'Rs. ${detail.amount.toStringAsFixed(2)}';
       return '''
@@ -109,7 +114,8 @@ class ReceiptHtmlGeneratorService {
                 .grid-wrap { padding: 10px 12px; border-bottom: 1px solid #666; }
                 .grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
                 .grid th, .grid td { border: 1px solid #666; padding: 5px 8px; font-size: 8.3px; }
-                .grid th { font-weight: 700; text-align: center; }
+                .grid th:first-child { font-weight: 700; text-align: left; }
+                .grid th:last-child { font-weight: 700; text-align: right; width: 34%; }
                 .grid td:last-child { text-align: right; width: 34%; }
                 .grid .total td { font-weight: 800; }
                 .detail-line { font-size: 8.3px; padding: 9px 12px; border-bottom: 1px solid #666; min-height: 32px; }
@@ -203,10 +209,12 @@ class ReceiptHtmlGeneratorService {
 
             <div class="detail-line"><span class="label">Received as:</span> ${_escapeHtml(data.paymentMode)}</div>
             <div class="detail-line"><span class="label">Amount in Words:</span> ${_escapeHtml(amountInWords)} only</div>
+            ${data.notes.isNotEmpty ? '<div class="detail-line"><span class="label">Notes:</span> ' + _escapeHtml(data.notes) + '</div>' : ''}
             <div class="sign-row">
                 <div class="sign-block">
                     for Scripture Union &amp; CSSM council of India
-                    <div class="sign-line">Authorised Signatory</div>
+                    $signatureImgTag
+                    <div class="sign-line" style="margin-top: 2px;">Authorised Signatory</div>
                 </div>
             </div>
 

@@ -579,7 +579,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
     return <String, dynamic>{
       'donorID': 0,
       'donorName': _donorNameController.text.trim(),
-      'userName': sessionUserName,
+      'representativeName': sessionUserName,
       'regionName': regionName,
       'photo': '',
       // Individual identity docs

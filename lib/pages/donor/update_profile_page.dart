@@ -180,7 +180,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       setState(() {
         _loadedDonor = donor;
         _donorNameController.text = donor.name;
-        _selectedTitle = donor.title;
+        _selectedTitle = _titles.contains(donor.title) ? donor.title : 'Mr.';
         _selectedGender = donor.gender.trim().isEmpty ? null : donor.gender;
         _selectedMaritalStatus =
             donor.maritalStatus.trim().isEmpty ? null : donor.maritalStatus;
@@ -584,6 +584,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     return <String, dynamic>{
       'donorID': widget.donorId ?? 0,
       'donorName': _donorNameController.text.trim(),
+      'salutation': _selectedDonorType == 2 ? '' : _selectedTitle.trim(),
       'panNumber':
           _selectedIdentityDoc == 'PAN' ? _panController.text.trim() : '',
       'aadhaarNumber':

@@ -1457,10 +1457,21 @@ class _NewDonorPageState extends State<NewDonorPage> {
                                 ? 'Contact WhatsApp No'
                                 : 'WhatsApp No',
                             icon: Icons.message_outlined,
+                            isRequired: true,
                             keyboardType: TextInputType.phone,
                             validator: (value) {
                               if (_whatsAppServerError != null) {
                                 return _whatsAppServerError;
+                              }
+                              final String? error = _requiredValidator(
+                                value,
+                                'WhatsApp number is required',
+                              );
+                              if (error != null) {
+                                return error;
+                              }
+                              if ((value ?? '').trim().length < 10) {
+                                return 'Enter a valid WhatsApp number';
                               }
                               return null;
                             },

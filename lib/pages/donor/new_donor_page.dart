@@ -10,6 +10,7 @@ import '../../common/constants/api_endpoints.dart';
 import '../../common/constants/app_colors.dart';
 import '../../common/models/user_data.dart';
 import '../../common/services/agent_area_service.dart';
+import '../../common/services/location_service.dart';
 import '../../common/services/auth_service.dart';
 import '../../common/widgets/common_alert.dart';
 import 'donor_creation_success_page.dart';
@@ -44,10 +45,10 @@ class _NewDonorPageState extends State<NewDonorPage> {
   final _streetController = TextEditingController();
   final _cityController = TextEditingController();
   final _pincodeController = TextEditingController();
-  final _districtController = TextEditingController();
   final _organizationController = TextEditingController();
   final _contactPersonNameController = TextEditingController();
   final _addressController = TextEditingController();
+  final _addressLine2Controller = TextEditingController();
   final _mobileController = TextEditingController();
   final _whatsAppController = TextEditingController();
   final _emailController = TextEditingController();
@@ -79,6 +80,13 @@ class _NewDonorPageState extends State<NewDonorPage> {
   String? _selectedArea;
   int? _selectedRegionId;
   String? _selectedState;
+  String? _selectedDistrict;
+  String? _selectedCountry;
+
+  List<StateOption> _stateOptions = <StateOption>[];
+  List<DistrictOption> _districtOptions = <DistrictOption>[];
+  List<CountryOption> _countryOptions = <CountryOption>[];
+  bool _loadingLocations = false;
   int? _selectedDonorType;
 
   String? _selectedIdentityDoc;
@@ -104,16 +112,6 @@ class _NewDonorPageState extends State<NewDonorPage> {
   static const List<String> _genders = ['Male', 'Female', 'Other'];
   static const List<String> _maritalStatuses = ['Married', 'Single', 'Other'];
   static const List<String> _membershipOptions = ['Member', 'Non-Member'];
-  static const List<String> _states = [
-    'Andaman Nicobar',
-    'Andhra Pradesh',
-    'Delhi',
-    'Karnataka',
-    'Maharashtra',
-    'Odisha',
-    'Tamil Nadu',
-    'West Bengal',
-  ];
 
   String? _mobileServerError;
   String? _whatsAppServerError;
@@ -124,6 +122,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
   void initState() {
     super.initState();
     _loadUserDataAndAreas();
+    _loadLocations();
 
     _mobileController.addListener(() {
       if (_mobileServerError != null) {
@@ -198,6 +197,31 @@ class _NewDonorPageState extends State<NewDonorPage> {
     }
   }
 
+  Future<void> _loadLocations() async {
+    setState(() => _loadingLocations = true);
+    try {
+      final results = await Future.wait([
+        LocationService.instance.fetchStates(),
+        LocationService.instance.fetchDistricts(),
+        LocationService.instance.fetchCountries(),
+      ]);
+
+      if (mounted) {
+        setState(() {
+          _stateOptions = results[0] as List<StateOption>;
+          _districtOptions = results[1] as List<DistrictOption>;
+          _countryOptions = results[2] as List<CountryOption>;
+          _loadingLocations = false;
+        });
+      }
+    } catch (e) {
+      print('[NewDonorPage] Error loading locations: $e');
+      if (mounted) {
+        setState(() => _loadingLocations = false);
+      }
+    }
+  }
+
   Future<void> _loadAreas(int userTypeId, int userId) async {
     print('[NewDonorPage] ======== LOADING AREAS ========');
     print('[NewDonorPage] userTypeId: $userTypeId, userId: $userId');
@@ -256,10 +280,10 @@ class _NewDonorPageState extends State<NewDonorPage> {
     _streetController.dispose();
     _cityController.dispose();
     _pincodeController.dispose();
-    _districtController.dispose();
     _organizationController.dispose();
     _contactPersonNameController.dispose();
     _addressController.dispose();
+    _addressLine2Controller.dispose();
     _mobileController.dispose();
     _whatsAppController.dispose();
     _emailController.dispose();
@@ -522,7 +546,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
     });
   }
 
-  Map<String, dynamic> _buildDonorPayload() {
+  Future<Map<String, dynamic>> _buildDonorPayload() async {
     final DateTime now = DateTime.now().toUtc();
 
     // Resolve selected area ID from the loaded area options
@@ -539,6 +563,10 @@ class _NewDonorPageState extends State<NewDonorPage> {
       }
     }
 
+    final AuthSession? session = await AuthService.instance.currentSession();
+    final String sessionUserName = session?.userName ?? '';
+    final String regionName = _userData?.regionName ?? '';
+
     // Determine role IDs based on userTypeID
     // 1 = Area Leader, 2 = Promotion Staff, 3 = Field Staff, 4 = Local Unit
     final int userTypeID = _userData?.userTypeID ?? 0;
@@ -551,6 +579,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
     return <String, dynamic>{
       'donorID': 0,
       'donorName': _donorNameController.text.trim(),
+      'userName': sessionUserName,
+      'regionName': regionName,
       'photo': '',
       // Individual identity docs
       'panNumber': _selectedIdentityDoc == 'PAN' ? _panController.text.trim() : '',
@@ -585,7 +615,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'street': _streetController.text.trim(),
       'village': _flatBuildingController.text.trim(),
       'city': _cityController.text.trim(),
-      'district': _districtController.text.trim(),
+      'district': (_selectedDistrict ?? '').trim(),
       'state': (_selectedState ?? '').trim(),
       'pincode': _pincodeController.text.trim(),
       'organization':
@@ -593,8 +623,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'contactPersonName':
           _isOrganizationDonor ? _contactPersonNameController.text.trim() : '',
       'address': _addressController.text.trim(),
-      'addressLine2': '',
-      'country': '',
+      'addressLine2': _addressLine2Controller.text.trim(),
+      'country': (_selectedCountry ?? '').trim(),
       'areaName': _selectedArea ?? '',
       'type': _selectedDonorType ?? 0,
       'isActive': true,
@@ -606,7 +636,6 @@ class _NewDonorPageState extends State<NewDonorPage> {
       'areaLeaderID': areaLeaderId,
       'promotionStaffID': promotionStaffId,
       'fieldStaffID': fieldStaffId,
-      'localMemberID': localMemberId,
       'dependents': _isOrganizationDonor
           ? <Map<String, dynamic>>[]
           : _dependents.map((d) => d.toJson()).toList(),
@@ -640,13 +669,15 @@ class _NewDonorPageState extends State<NewDonorPage> {
 
     if ((_isIndividualDonor &&
             (_selectedGender == null || _selectedMaritalStatus == null)) ||
-        _selectedState == null) {
+        _selectedState == null ||
+        _selectedDistrict == null ||
+        _selectedCountry == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
             _isIndividualDonor
-                ? 'Select gender, marital status, and state to continue.'
-                : 'Select state to continue.',
+                ? 'Select gender, marital status, state, district, and country to continue.'
+                : 'Select state, district, and country to continue.',
           ),
         ),
       );
@@ -714,11 +745,14 @@ class _NewDonorPageState extends State<NewDonorPage> {
     if (_cityController.text.trim().isEmpty) {
       validationErrors.add('City is required');
     }
-    if (_districtController.text.trim().isEmpty) {
+    if (_selectedDistrict == null || _selectedDistrict!.isEmpty) {
       validationErrors.add('District is required');
     }
     if (_selectedState == null || _selectedState!.isEmpty) {
       validationErrors.add('State is required');
+    }
+    if (_selectedCountry == null || _selectedCountry!.isEmpty) {
+      validationErrors.add('Country is required');
     }
 
     final String pinVal = _pincodeController.text.trim();
@@ -791,7 +825,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
     setState(() => _saving = true);
 
     try {
-      final payload = _buildDonorPayload();
+      final payload = await _buildDonorPayload();
       final Uri uri = ApiConfig.uri(ApiEndpoints.donor);
       print('[API] URL: $uri');
       print('[API] Payload JSON: ${jsonEncode(payload)}');
@@ -1312,20 +1346,36 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             },
                           ),
                           const SizedBox(height: 16),
-                          _StyledTextField(
-                            controller: _districtController,
-                            label: 'District',
+                          _DropdownField<String>(
+                            value: _selectedDistrict,
+                            items: {
+                              if (_selectedDistrict != null) _selectedDistrict!,
+                              ..._districtOptions.map((d) => d.districtName.trim())
+                            }.where((item) => item.isNotEmpty).toList(),
                             icon: Icons.location_on_outlined,
+                            hintText: _loadingLocations ? 'Loading Districts...' : 'District',
                             isRequired: true,
-                            validator: (value) => _requiredValidator(
-                                value, 'District is required'),
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'District is required';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedDistrict = value;
+                              });
+                            },
                           ),
                           const SizedBox(height: 16),
                           _DropdownField<String>(
                             value: _selectedState,
-                            items: _states,
+                            items: {
+                              if (_selectedState != null) _selectedState!,
+                              ..._stateOptions.map((s) => s.stateName.trim())
+                            }.where((item) => item.isNotEmpty).toList(),
                             icon: Icons.map_outlined,
-                            hintText: 'State',
+                            hintText: _loadingLocations ? 'Loading States...' : 'State',
                             isRequired: true,
                             validator: (value) {
                               if (value == null || value.isEmpty) {
@@ -1336,6 +1386,28 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             onChanged: (value) {
                               setState(() {
                                 _selectedState = value;
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          _DropdownField<String>(
+                            value: _selectedCountry,
+                            items: {
+                              if (_selectedCountry != null) _selectedCountry!,
+                              ..._countryOptions.map((c) => c.countryName.trim())
+                            }.where((item) => item.isNotEmpty).toList(),
+                            icon: Icons.public_rounded,
+                            hintText: _loadingLocations ? 'Loading Countries...' : 'Country',
+                            isRequired: true,
+                            validator: (value) {
+                              if (value == null || value.isEmpty) {
+                                return 'Country is required';
+                              }
+                              return null;
+                            },
+                            onChanged: (value) {
+                              setState(() {
+                                _selectedCountry = value;
                               });
                             },
                           ),
@@ -1420,9 +1492,17 @@ class _NewDonorPageState extends State<NewDonorPage> {
                           _StyledTextField(
                             controller: _addressController,
                             label: _isOrganizationDonor
-                                ? 'Contact Address'
-                                : 'Address',
+                                ? 'Contact Address Line 1'
+                                : 'Address Line 1',
                             icon: Icons.home_rounded,
+                          ),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _addressLine2Controller,
+                            label: _isOrganizationDonor
+                                ? 'Contact Address Line 2'
+                                : 'Address Line 2',
+                            icon: Icons.home_work_rounded,
                           ),
                         ],
                       ),
@@ -1684,6 +1764,7 @@ class _DropdownField<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<T>(
+      isExpanded: true,
       value: value,
       validator: validator,
       decoration: _fieldDecoration(
@@ -1708,6 +1789,8 @@ class _DropdownField<T> extends StatelessWidget {
               value: item,
               child: Text(
                 itemLabelBuilder?.call(item) ?? '$item',
+                overflow: TextOverflow.ellipsis,
+                maxLines: 1,
                 style: const TextStyle(
                   color: AppColors.textDark,
                   fontSize: 16,

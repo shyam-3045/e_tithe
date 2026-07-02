@@ -322,7 +322,13 @@ class _DonorsListPageState extends State<DonorsListPage> {
         );
     }
 
-    Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => page));
+    Navigator.of(context)
+        .push(MaterialPageRoute<dynamic>(builder: (_) => page))
+        .then((result) {
+      if (action == _DonorMenuAction.updateProfile && result == true) {
+        _refreshDonors();
+      }
+    });
   }
 }
 

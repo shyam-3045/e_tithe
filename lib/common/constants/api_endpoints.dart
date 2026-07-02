@@ -14,4 +14,7 @@ class ApiEndpoints {
   static const String paymentMode = '/api/PaymentMode';
   static const String fund = '/api/Fund';
   static const String area = '/api/Area';
+  static const String state = '/api/State';
+  static const String district = '/api/District';
+  static const String country = '/api/Country';
 }

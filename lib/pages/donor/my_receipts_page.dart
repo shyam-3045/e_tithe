@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../common/constants/app_colors.dart';
 import '../../common/models/user_data.dart';
 import '../../common/services/auth_service.dart';
+import '../../common/services/payment_mode_service.dart';
 import '../../common/services/receipt_export_service.dart';
 import '../../common/services/receipt_service.dart';
 import '../../common/widgets/common_alert.dart';
@@ -22,7 +23,8 @@ class MyReceiptsPage extends StatefulWidget {
   State<MyReceiptsPage> createState() => _MyReceiptsPageState();
 }
 
-enum _ReceiptPayFilter { all, cash, neft, cheque, upi, bank }
+// Payment mode filter: null means "All", otherwise the paymentModeId from the API
+// The filter is stored as (id, name) so we can display the label and filter by name.
 
 class _MyReceiptsPageState extends State<MyReceiptsPage> {
   static const Color _receiptGreen = Color(0xFF09A83A);
@@ -35,8 +37,12 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
   bool _isLoading = true;
   String? _loadError;
 
+  List<PaymentModeInfo> _paymentModes = <PaymentModeInfo>[];
+  bool _isLoadingPaymentModes = false;
+
   bool _showCancelled = false;
-  _ReceiptPayFilter _payFilter = _ReceiptPayFilter.all;
+  int? _selectedPaymentModeId; // null = All
+  String _selectedPaymentModeName = ''; // display name for active filter
   DateTime _selectedReceiptDate = DateTime.now();
   String _donorSearchQuery = '';
 
@@ -60,16 +66,11 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
       items = items.where((r) => r.isCancelled);
     }
 
-    if (_payFilter == _ReceiptPayFilter.cash) {
-      items = items.where((r) => r.mode == _ReceiptMode.cash);
-    } else if (_payFilter == _ReceiptPayFilter.neft) {
-      items = items.where((r) => r.mode == _ReceiptMode.neft);
-    } else if (_payFilter == _ReceiptPayFilter.cheque) {
-      items = items.where((r) => r.mode == _ReceiptMode.cheque);
-    } else if (_payFilter == _ReceiptPayFilter.upi) {
-      items = items.where((r) => r.mode == _ReceiptMode.upi);
-    } else if (_payFilter == _ReceiptPayFilter.bank) {
-      items = items.where((r) => r.mode == _ReceiptMode.bank);
+    if (_selectedPaymentModeId != null && _selectedPaymentModeName.isNotEmpty) {
+      final String filterName = _selectedPaymentModeName.trim().toLowerCase();
+      items = items.where(
+        (r) => r.paymentMode.trim().toLowerCase() == filterName,
+      );
     }
 
     // Date filtering removed
@@ -87,6 +88,23 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
     _donorSearchQuery = (widget.donorName ?? '').trim();
     _donorSearchController.text = _donorSearchQuery;
     _loadReceipts();
+    _loadPaymentModes();
+  }
+
+  Future<void> _loadPaymentModes() async {
+    setState(() => _isLoadingPaymentModes = true);
+    try {
+      final List<PaymentModeInfo> modes =
+          await PaymentModeService.instance.fetchPaymentModes();
+      if (!mounted) return;
+      setState(() {
+        _paymentModes = modes;
+        _isLoadingPaymentModes = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _isLoadingPaymentModes = false);
+    }
   }
 
   @override
@@ -135,27 +153,34 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
   Future<void> _openFilterDialog() async {
     final _ReceiptFilterDraft draft = _ReceiptFilterDraft(
       showCancelled: _showCancelled,
-      payFilter: _payFilter,
+      selectedPaymentModeId: _selectedPaymentModeId,
+      selectedPaymentModeName: _selectedPaymentModeName,
     );
 
     final _ReceiptFilterDraft? updated = await showDialog<_ReceiptFilterDraft>(
       context: context,
       barrierDismissible: false,
-      builder: (context) => _ReceiptFilterDialog(draft: draft),
+      builder: (context) => _ReceiptFilterDialog(
+        draft: draft,
+        paymentModes: _paymentModes,
+        isLoadingModes: _isLoadingPaymentModes,
+      ),
     );
 
     if (updated == null) return;
 
     setState(() {
       _showCancelled = updated.showCancelled;
-      _payFilter = updated.payFilter;
+      _selectedPaymentModeId = updated.selectedPaymentModeId;
+      _selectedPaymentModeName = updated.selectedPaymentModeName;
     });
   }
 
   void _resetFilters() {
     setState(() {
       _showCancelled = false;
-      _payFilter = _ReceiptPayFilter.all;
+      _selectedPaymentModeId = null;
+      _selectedPaymentModeName = '';
     });
   }
 
@@ -366,7 +391,7 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
       pincode: item.pincode,
       fundType: item.fundType,
       amount: 'INR ${_formatMoney(item.amount)}',
-      paymentMode: item.mode.listLabel,
+      paymentMode: item.paymentMode,
       monthLabel: item.monthLabel,
       notes: item.notes,
       fundDetails: fundDetails,
@@ -627,7 +652,7 @@ class _ReceiptItem {
     required this.addressLines,
     required this.pincode,
     required this.monthLabel,
-    required this.mode,
+    required this.paymentMode,
     required this.amount,
     required this.fundType,
     required this.mobile,
@@ -644,29 +669,15 @@ class _ReceiptItem {
       addressLines: record.addressLines,
       pincode: record.pincode,
       monthLabel: record.monthLabel,
-      mode: _parseMode(record.paymentMode),
+      paymentMode: record.paymentMode.trim().isNotEmpty
+          ? record.paymentMode.trim().toUpperCase()
+          : 'UNKNOWN',
       amount: record.amount,
       fundType: record.fundType,
       mobile: record.mobile,
       isCancelled: record.isCancelled,
       notes: record.notes.trim(),
     );
-  }
-
-  static _ReceiptMode _parseMode(String value) {
-    final String normalized = value.trim().toLowerCase();
-    if (normalized.contains('cash')) return _ReceiptMode.cash;
-    if (normalized.contains('upi') ||
-        normalized.contains('gpay') ||
-        normalized.contains('phonepe') ||
-        normalized.contains('paytm') ||
-        normalized.contains('qr') ||
-        normalized.contains('google')) {
-      return _ReceiptMode.upi;
-    }
-    if (normalized.contains('cheque')) return _ReceiptMode.cheque;
-    if (normalized.contains('neft') || normalized.contains('rtgs')) return _ReceiptMode.neft;
-    return _ReceiptMode.bank;
   }
 
   final int receiptId;
@@ -676,23 +687,12 @@ class _ReceiptItem {
   final List<String> addressLines;
   final String pincode;
   final String monthLabel;
-  final _ReceiptMode mode;
+  final String paymentMode; // raw value from API, uppercased
   final double amount;
   final String fundType;
   final String mobile;
   final bool isCancelled;
   final String notes;
-}
-
-enum _ReceiptMode {
-  cash('CASH'),
-  neft('NEFT/RTGS'),
-  cheque('CHEQUE'),
-  upi('UPI'),
-  bank('BANK');
-
-  const _ReceiptMode(this.listLabel);
-  final String listLabel;
 }
 
 class _ReceiptCard extends StatelessWidget {
@@ -757,7 +757,7 @@ class _ReceiptCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(999),
                         ),
                         child: Text(
-                          item.mode.listLabel,
+                          item.paymentMode,
                           style: TextStyle(
                             color: modeColor,
                             fontSize: 12,
@@ -923,17 +923,25 @@ class _BottomAction extends StatelessWidget {
 class _ReceiptFilterDraft {
   _ReceiptFilterDraft({
     required this.showCancelled,
-    required this.payFilter,
+    required this.selectedPaymentModeId,
+    required this.selectedPaymentModeName,
   });
 
   bool showCancelled;
-  _ReceiptPayFilter payFilter;
+  int? selectedPaymentModeId; // null = All
+  String selectedPaymentModeName; // empty = All
 }
 
 class _ReceiptFilterDialog extends StatefulWidget {
-  const _ReceiptFilterDialog({required this.draft});
+  const _ReceiptFilterDialog({
+    required this.draft,
+    required this.paymentModes,
+    required this.isLoadingModes,
+  });
 
   final _ReceiptFilterDraft draft;
+  final List<PaymentModeInfo> paymentModes;
+  final bool isLoadingModes;
 
   @override
   State<_ReceiptFilterDialog> createState() => _ReceiptFilterDialogState();
@@ -941,12 +949,14 @@ class _ReceiptFilterDialog extends StatefulWidget {
 
 class _ReceiptFilterDialogState extends State<_ReceiptFilterDialog> {
   late bool _showCancelled = widget.draft.showCancelled;
-  late _ReceiptPayFilter _pay = widget.draft.payFilter;
+  late int? _selectedModeId = widget.draft.selectedPaymentModeId;
+  late String _selectedModeName = widget.draft.selectedPaymentModeName;
 
   Future<void> _apply() async {
     final _ReceiptFilterDraft draft = _ReceiptFilterDraft(
       showCancelled: _showCancelled,
-      payFilter: _pay,
+      selectedPaymentModeId: _selectedModeId,
+      selectedPaymentModeName: _selectedModeName,
     );
 
     if (!mounted) return;
@@ -991,73 +1001,97 @@ class _ReceiptFilterDialogState extends State<_ReceiptFilterDialog> {
                 ),
                 const SizedBox(height: 12),
                 _OutlineTile(
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _PayRadio(
-                              label: 'ALL',
-                              value: _ReceiptPayFilter.all,
-                              groupValue: _pay,
-                              onChanged: (v) => setState(() => _pay = v),
+                  child: widget.isLoadingModes
+                      ? const Padding(
+                          padding: EdgeInsets.all(16),
+                          child: Center(child: CircularProgressIndicator()),
+                        )
+                      : Column(
+                          children: [
+                            // "ALL" + first mode side by side
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _PayRadio<int?>(
+                                    label: 'ALL',
+                                    value: null,
+                                    groupValue: _selectedModeId,
+                                    onChanged: (v) => setState(() {
+                                      _selectedModeId = null;
+                                      _selectedModeName = '';
+                                    }),
+                                  ),
+                                ),
+                                if (widget.paymentModes.isNotEmpty)
+                                  Expanded(
+                                    child: _PayRadio<int?>(
+                                      label: widget.paymentModes.first.name
+                                          .toUpperCase(),
+                                      value:
+                                          widget.paymentModes.first.paymentModeId,
+                                      groupValue: _selectedModeId,
+                                      onChanged: (v) => setState(() {
+                                        _selectedModeId = widget
+                                            .paymentModes.first.paymentModeId;
+                                        _selectedModeName =
+                                            widget.paymentModes.first.name;
+                                      }),
+                                    ),
+                                  ),
+                              ],
                             ),
-                          ),
-                          Expanded(
-                            child: _PayRadio(
-                              label: 'CASH',
-                              value: _ReceiptPayFilter.cash,
-                              groupValue: _pay,
-                              onChanged: (v) => setState(() => _pay = v),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _PayRadio(
-                              label: 'NEFT/RTGS',
-                              value: _ReceiptPayFilter.neft,
-                              groupValue: _pay,
-                              onChanged: (v) => setState(() => _pay = v),
-                            ),
-                          ),
-                          Expanded(
-                            child: _PayRadio(
-                              label: 'CHEQUE',
-                              value: _ReceiptPayFilter.cheque,
-                              groupValue: _pay,
-                              onChanged: (v) => setState(() => _pay = v),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _PayRadio(
-                              label: 'UPI',
-                              value: _ReceiptPayFilter.upi,
-                              groupValue: _pay,
-                              onChanged: (v) => setState(() => _pay = v),
-                            ),
-                          ),
-                          Expanded(
-                            child: _PayRadio(
-                              label: 'BANK',
-                              value: _ReceiptPayFilter.bank,
-                              groupValue: _pay,
-                              onChanged: (v) => setState(() => _pay = v),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                            // Remaining modes paired into rows of 2
+                            ...() {
+                              final List<PaymentModeInfo> rest =
+                                  widget.paymentModes.skip(1).toList();
+                              final List<Widget> rows = <Widget>[];
+                              for (int i = 0; i < rest.length; i += 2) {
+                                final PaymentModeInfo left = rest[i];
+                                final PaymentModeInfo? right =
+                                    i + 1 < rest.length ? rest[i + 1] : null;
+                                rows.add(
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 6),
+                                    child: Row(
+                                      children: [
+                                        Expanded(
+                                          child: _PayRadio<int?>(
+                                            label: left.name.toUpperCase(),
+                                            value: left.paymentModeId,
+                                            groupValue: _selectedModeId,
+                                            onChanged: (v) => setState(() {
+                                              _selectedModeId =
+                                                  left.paymentModeId;
+                                              _selectedModeName = left.name;
+                                            }),
+                                          ),
+                                        ),
+                                        if (right != null)
+                                          Expanded(
+                                            child: _PayRadio<int?>(
+                                              label: right.name.toUpperCase(),
+                                              value: right.paymentModeId,
+                                              groupValue: _selectedModeId,
+                                              onChanged: (v) => setState(() {
+                                                _selectedModeId =
+                                                    right.paymentModeId;
+                                                _selectedModeName = right.name;
+                                              }),
+                                            ),
+                                          )
+                                        else
+                                          const Expanded(child: SizedBox()),
+                                      ],
+                                    ),
+                                  ),
+                                );
+                              }
+                              return rows;
+                            }(),
+                          ],
+                        ),
                 ),
+
 
               ],
             ),
@@ -1113,7 +1147,7 @@ class _OutlineTile extends StatelessWidget {
   }
 }
 
-class _PayRadio extends StatelessWidget {
+class _PayRadio<T> extends StatelessWidget {
   const _PayRadio({
     required this.label,
     required this.value,
@@ -1122,25 +1156,22 @@ class _PayRadio extends StatelessWidget {
   });
 
   final String label;
-  final _ReceiptPayFilter value;
-  final _ReceiptPayFilter groupValue;
-  final ValueChanged<_ReceiptPayFilter> onChanged;
+  final T value;
+  final T groupValue;
+  final ValueChanged<T?> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Radio<_ReceiptPayFilter>(
+        Radio<T>(
           value: value,
           groupValue: groupValue,
           activeColor: AppColors.primaryPurple,
           visualDensity: VisualDensity.compact,
           materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          onChanged: (v) {
-            if (v == null) return;
-            onChanged(v);
-          },
+          onChanged: onChanged,
         ),
         const SizedBox(width: 4),
         Expanded(
@@ -1596,7 +1627,7 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
                                Row(
                                 children: [
                                   Text(
-                                    'Payed as : ${widget.receipt.mode.listLabel}',
+                                    'Payed as : ${widget.receipt.paymentMode}',
                                     style: const TextStyle(
                                       color: AppColors.primaryPurple,
                                       fontSize: 16,

@@ -22,7 +22,7 @@ class MyReceiptsPage extends StatefulWidget {
   State<MyReceiptsPage> createState() => _MyReceiptsPageState();
 }
 
-enum _ReceiptPayFilter { all, cash, bank }
+enum _ReceiptPayFilter { all, cash, neft, cheque, upi, bank }
 
 class _MyReceiptsPageState extends State<MyReceiptsPage> {
   static const Color _receiptGreen = Color(0xFF09A83A);
@@ -37,8 +37,6 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
 
   bool _showCancelled = false;
   _ReceiptPayFilter _payFilter = _ReceiptPayFilter.all;
-  DateTime? _fromDate;
-  DateTime? _toDate;
   DateTime _selectedReceiptDate = DateTime.now();
   String _donorSearchQuery = '';
 
@@ -58,36 +56,23 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
       );
     }
 
-    if (!_showCancelled) {
-      items = items.where((r) => !r.isCancelled);
+    if (_showCancelled) {
+      items = items.where((r) => r.isCancelled);
     }
 
     if (_payFilter == _ReceiptPayFilter.cash) {
       items = items.where((r) => r.mode == _ReceiptMode.cash);
+    } else if (_payFilter == _ReceiptPayFilter.neft) {
+      items = items.where((r) => r.mode == _ReceiptMode.neft);
+    } else if (_payFilter == _ReceiptPayFilter.cheque) {
+      items = items.where((r) => r.mode == _ReceiptMode.cheque);
+    } else if (_payFilter == _ReceiptPayFilter.upi) {
+      items = items.where((r) => r.mode == _ReceiptMode.upi);
     } else if (_payFilter == _ReceiptPayFilter.bank) {
-      items = items.where((r) => r.mode != _ReceiptMode.cash);
+      items = items.where((r) => r.mode == _ReceiptMode.bank);
     }
 
-    if (_fromDate != null) {
-      final DateTime from = DateTime(
-        _fromDate!.year,
-        _fromDate!.month,
-        _fromDate!.day,
-      );
-      items = items.where((r) => !r.date.isBefore(from));
-    }
-
-    if (_toDate != null) {
-      final DateTime to = DateTime(
-        _toDate!.year,
-        _toDate!.month,
-        _toDate!.day,
-        23,
-        59,
-        59,
-      );
-      items = items.where((r) => !r.date.isAfter(to));
-    }
+    // Date filtering removed
 
     return items.toList()..sort((a, b) => b.date.compareTo(a.date));
   }
@@ -151,8 +136,6 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
     final _ReceiptFilterDraft draft = _ReceiptFilterDraft(
       showCancelled: _showCancelled,
       payFilter: _payFilter,
-      from: _fromDate,
-      to: _toDate,
     );
 
     final _ReceiptFilterDraft? updated = await showDialog<_ReceiptFilterDraft>(
@@ -166,8 +149,6 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
     setState(() {
       _showCancelled = updated.showCancelled;
       _payFilter = updated.payFilter;
-      _fromDate = updated.from;
-      _toDate = updated.to;
     });
   }
 
@@ -175,8 +156,6 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
     setState(() {
       _showCancelled = false;
       _payFilter = _ReceiptPayFilter.all;
-      _fromDate = null;
-      _toDate = null;
     });
   }
 
@@ -677,9 +656,17 @@ class _ReceiptItem {
   static _ReceiptMode _parseMode(String value) {
     final String normalized = value.trim().toLowerCase();
     if (normalized.contains('cash')) return _ReceiptMode.cash;
-    if (normalized.contains('upi')) return _ReceiptMode.upi;
+    if (normalized.contains('upi') ||
+        normalized.contains('gpay') ||
+        normalized.contains('phonepe') ||
+        normalized.contains('paytm') ||
+        normalized.contains('qr') ||
+        normalized.contains('google')) {
+      return _ReceiptMode.upi;
+    }
     if (normalized.contains('cheque')) return _ReceiptMode.cheque;
-    return _ReceiptMode.neft;
+    if (normalized.contains('neft') || normalized.contains('rtgs')) return _ReceiptMode.neft;
+    return _ReceiptMode.bank;
   }
 
   final int receiptId;
@@ -699,9 +686,10 @@ class _ReceiptItem {
 
 enum _ReceiptMode {
   cash('CASH'),
-  cheque('BANK'),
-  neft('BANK'),
-  upi('BANK');
+  neft('NEFT/RTGS'),
+  cheque('CHEQUE'),
+  upi('UPI'),
+  bank('BANK');
 
   const _ReceiptMode(this.listLabel);
   final String listLabel;
@@ -936,14 +924,10 @@ class _ReceiptFilterDraft {
   _ReceiptFilterDraft({
     required this.showCancelled,
     required this.payFilter,
-    required this.from,
-    required this.to,
   });
 
   bool showCancelled;
   _ReceiptPayFilter payFilter;
-  DateTime? from;
-  DateTime? to;
 }
 
 class _ReceiptFilterDialog extends StatefulWidget {
@@ -958,59 +942,11 @@ class _ReceiptFilterDialog extends StatefulWidget {
 class _ReceiptFilterDialogState extends State<_ReceiptFilterDialog> {
   late bool _showCancelled = widget.draft.showCancelled;
   late _ReceiptPayFilter _pay = widget.draft.payFilter;
-  DateTime? _from;
-  DateTime? _to;
-
-  @override
-  void initState() {
-    super.initState();
-    _from = widget.draft.from;
-    _to = widget.draft.to;
-  }
-
-  Future<void> _pickFrom() async {
-    final DateTime now = DateTime.now();
-    final DateTime initial = _from ?? now;
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(now.year + 1),
-    );
-    if (picked == null) return;
-    setState(() => _from = picked);
-  }
-
-  Future<void> _pickTo() async {
-    final DateTime now = DateTime.now();
-    final DateTime initial = _to ?? now;
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(2000),
-      lastDate: DateTime(now.year + 1),
-    );
-    if (picked == null) return;
-    setState(() => _to = picked);
-  }
 
   Future<void> _apply() async {
-    if (_from != null && _to != null) {
-      if (_to!.isBefore(_from!)) {
-        await CommonAlert.showInfo(
-          context,
-          title: 'Invalid date range',
-          message: 'To date should be on/after From date.',
-        );
-        return;
-      }
-    }
-
     final _ReceiptFilterDraft draft = _ReceiptFilterDraft(
       showCancelled: _showCancelled,
       payFilter: _pay,
-      from: _from,
-      to: _to,
     );
 
     if (!mounted) return;
@@ -1055,36 +991,74 @@ class _ReceiptFilterDialogState extends State<_ReceiptFilterDialog> {
                 ),
                 const SizedBox(height: 12),
                 _OutlineTile(
-                  child: Wrap(
-                    alignment: WrapAlignment.center,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
+                  child: Column(
                     children: [
-                      _PayRadio(
-                        label: 'ALL',
-                        value: _ReceiptPayFilter.all,
-                        groupValue: _pay,
-                        onChanged: (v) => setState(() => _pay = v),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PayRadio(
+                              label: 'ALL',
+                              value: _ReceiptPayFilter.all,
+                              groupValue: _pay,
+                              onChanged: (v) => setState(() => _pay = v),
+                            ),
+                          ),
+                          Expanded(
+                            child: _PayRadio(
+                              label: 'CASH',
+                              value: _ReceiptPayFilter.cash,
+                              groupValue: _pay,
+                              onChanged: (v) => setState(() => _pay = v),
+                            ),
+                          ),
+                        ],
                       ),
-                      _PayRadio(
-                        label: 'CASH',
-                        value: _ReceiptPayFilter.cash,
-                        groupValue: _pay,
-                        onChanged: (v) => setState(() => _pay = v),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PayRadio(
+                              label: 'NEFT/RTGS',
+                              value: _ReceiptPayFilter.neft,
+                              groupValue: _pay,
+                              onChanged: (v) => setState(() => _pay = v),
+                            ),
+                          ),
+                          Expanded(
+                            child: _PayRadio(
+                              label: 'CHEQUE',
+                              value: _ReceiptPayFilter.cheque,
+                              groupValue: _pay,
+                              onChanged: (v) => setState(() => _pay = v),
+                            ),
+                          ),
+                        ],
                       ),
-                      _PayRadio(
-                        label: 'BANK',
-                        value: _ReceiptPayFilter.bank,
-                        groupValue: _pay,
-                        onChanged: (v) => setState(() => _pay = v),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _PayRadio(
+                              label: 'UPI',
+                              value: _ReceiptPayFilter.upi,
+                              groupValue: _pay,
+                              onChanged: (v) => setState(() => _pay = v),
+                            ),
+                          ),
+                          Expanded(
+                            child: _PayRadio(
+                              label: 'BANK',
+                              value: _ReceiptPayFilter.bank,
+                              groupValue: _pay,
+                              onChanged: (v) => setState(() => _pay = v),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
-                _DateField(value: _from, onTap: _pickFrom),
-                const SizedBox(height: 12),
-                _DateField(value: _to, onTap: _pickTo),
+
               ],
             ),
           ),
@@ -1161,56 +1135,31 @@ class _PayRadio extends StatelessWidget {
           value: value,
           groupValue: groupValue,
           activeColor: AppColors.primaryPurple,
+          visualDensity: VisualDensity.compact,
+          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
           onChanged: (v) {
             if (v == null) return;
             onChanged(v);
           },
         ),
-        Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
       ],
     );
   }
 }
 
-class _DateField extends StatelessWidget {
-  const _DateField({required this.value, required this.onTap});
 
-  final DateTime? value;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final String text = value == null ? 'DD/MM/YYYY' : _formatDate(value!);
-
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(10),
-      child: _OutlineTile(
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                text,
-                style: TextStyle(
-                  color: value == null
-                      ? AppColors.textGrey.withOpacity(0.7)
-                      : AppColors.textDark,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-            const Icon(
-              Icons.calendar_month_rounded,
-              color: AppColors.primaryPurple,
-              size: 26,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 class _ReceiptSearchPage extends StatefulWidget {
   const _ReceiptSearchPage({
@@ -1647,7 +1596,7 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
                                Row(
                                 children: [
                                   Text(
-                                    'Payed as : ${widget.receipt.mode == _ReceiptMode.cash ? 'CASH' : 'BANK'}',
+                                    'Payed as : ${widget.receipt.mode.listLabel}',
                                     style: const TextStyle(
                                       color: AppColors.primaryPurple,
                                       fontSize: 16,

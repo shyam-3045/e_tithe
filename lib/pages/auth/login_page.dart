@@ -188,9 +188,9 @@ class _LoginPageState extends State<LoginPage> {
                               onPressed: _login,
                             ),
                             const SizedBox(height: 20),
-                            const Text(
+                            Text(
                               AppConstants.versionLabel,
-                              style: TextStyle(
+                              style: const TextStyle(
                                 color: AppColors.textGrey,
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,

@@ -3,9 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import 'app/e_tithe_app.dart';
 import 'common/constants/app_colors.dart';
+import 'common/constants/app_constants.dart';
 
 class MyHttpOverrides extends HttpOverrides {
   @override
@@ -24,6 +26,13 @@ class MyHttpOverrides extends HttpOverrides {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   HttpOverrides.global = MyHttpOverrides();
+
+  try {
+    final PackageInfo packageInfo = await PackageInfo.fromPlatform();
+    AppConstants.versionLabel = 'V.${packageInfo.version}';
+  } catch (_) {
+    // Fallback if PackageInfo fails (e.g. during testing)
+  }
 
   try {
     await dotenv.load(fileName: '.env');

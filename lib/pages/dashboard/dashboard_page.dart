@@ -307,11 +307,11 @@ class _DashboardDrawer extends StatelessWidget {
               onTap: () => _handleLogout(context),
             ),
             const Spacer(),
-            const Padding(
-              padding: EdgeInsets.only(bottom: 18),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 18),
               child: Text(
                 AppConstants.versionLabel,
-                style: TextStyle(
+                style: const TextStyle(
                   color: AppColors.textGrey,
                   fontSize: 13,
                   fontWeight: FontWeight.w600,

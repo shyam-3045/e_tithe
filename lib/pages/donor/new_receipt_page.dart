@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'package:qr_flutter/qr_flutter.dart';
+
 import '../../common/constants/app_colors.dart';
 import '../../common/models/user_data.dart';
 import '../../common/services/auth_service.dart';
@@ -1148,6 +1150,8 @@ class _ReceiptSignaturePage extends StatefulWidget {
 }
 
 class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
+  static const String _hardcodedUpiId = '9940644753@kotakbank';
+
   bool _isSubmitting = false;
   late final TextEditingController _notesController;
   PaymentModeInfo? _selectedPaymentMode;
@@ -1173,6 +1177,120 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     final String month = local.month.toString().padLeft(2, '0');
     final String day = local.day.toString().padLeft(2, '0');
     return '${local.year}-$month-$day';
+  }
+
+  Widget _buildUpiQrCard() {
+    if (_selectedPaymentMode == null) return const SizedBox.shrink();
+
+    final String modeName = _selectedPaymentMode!.name.toLowerCase();
+    if (modeName != 'upi') return const SizedBox.shrink();
+
+    final double amount = widget.totalAmount;
+    final String upiUrl = 'upi://pay?pa=$_hardcodedUpiId&pn=${Uri.encodeComponent('eTithe')}&am=${amount.toStringAsFixed(2)}&cu=INR';
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderGrey),
+        boxShadow: const [
+          BoxShadow(
+            color: Color(0x0A000000),
+            blurRadius: 10,
+            offset: Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Row(
+            children: [
+              Icon(
+                Icons.qr_code_2_rounded,
+                color: AppColors.primaryPurple,
+                size: 24,
+              ),
+              SizedBox(width: 8),
+              Text(
+                'UPI Payment QR',
+                style: TextStyle(
+                  color: AppColors.textDark,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Center(
+            child: Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: AppColors.borderGrey.withOpacity(0.5)),
+              ),
+              child: QrImageView(
+                data: upiUrl,
+                version: QrVersions.auto,
+                size: 180,
+                eyeStyle: const QrEyeStyle(
+                  eyeShape: QrEyeShape.square,
+                  color: Colors.black,
+                ),
+                dataModuleStyle: const QrDataModuleStyle(
+                  dataModuleShape: QrDataModuleShape.square,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Amount to Pay: ₹${amount.toStringAsFixed(2)}',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: AppColors.primaryPurple,
+              fontSize: 18,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.softPurple.withOpacity(0.5),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'UPI ID',
+                  style: TextStyle(
+                    color: AppColors.textGrey,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                SizedBox(height: 2),
+                Text(
+                  _hardcodedUpiId,
+                  style: TextStyle(
+                    color: AppColors.textDark,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<UserDetails> _resolveCurrentUser() async {
@@ -1501,6 +1619,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
                   ],
                 ),
               ),
+              _buildUpiQrCard(),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _notesController,

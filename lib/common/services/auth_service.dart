@@ -130,11 +130,30 @@ class AuthService {
     }
 
     final Map<String, dynamic> data = _decodeJsonObject(response.body);
-    final AuthSession session = AuthSession.fromJson(data);
+    final AuthSession parsedSession = AuthSession.fromJson(data);
 
-    if (session.token.trim().isEmpty) {
+    if (parsedSession.token.trim().isEmpty) {
       throw const AuthException('Login response did not include a token.');
     }
+
+    // Some login responses omit the account email; fall back to what the
+    // user actually typed in so it's always available for later API calls
+    // (e.g. change password) regardless of what the backend returns.
+    final AuthSession session = (parsedSession.email ?? '').trim().isEmpty
+        ? AuthSession(
+            token: parsedSession.token,
+            refreshToken: parsedSession.refreshToken,
+            expiration: parsedSession.expiration,
+            userId: parsedSession.userId,
+            userGuid: parsedSession.userGuid,
+            userName: parsedSession.userName,
+            email: email.trim(),
+            userTypeId: parsedSession.userTypeId,
+            isActive: parsedSession.isActive,
+            message: parsedSession.message,
+            mobileNumber: parsedSession.mobileNumber,
+          )
+        : parsedSession;
 
     await _saveSession(session);
 
@@ -176,6 +195,38 @@ class AuthService {
     }
 
     return session;
+  }
+
+  Future<void> changePassword({
+    required String emailID,
+    required String oldPassword,
+    required String newPassword,
+  }) async {
+    final Uri uri = ApiConfig.uri(ApiEndpoints.changePassword);
+    final Map<String, String> headers = await authenticatedJsonHeaders();
+    final String body = jsonEncode(<String, String>{
+      'emailID': emailID.trim(),
+      'oldPassword': oldPassword,
+      'newPassword': newPassword,
+    });
+
+    print('[API] PUT $uri');
+    print('[API] Request body: $body');
+
+    final http.Response response = await _client.put(
+      uri,
+      headers: headers,
+      body: body,
+    );
+
+    print('[API] Response: ${response.statusCode} ${response.body}');
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw AuthException(
+        _extractMessage(response.body) ??
+            'Failed to change password. Please try again.',
+      );
+    }
   }
 
   Future<Map<String, String>> jsonHeaders() async {
@@ -383,6 +434,8 @@ class AuthService {
         if (message != null && message.toString().trim().isNotEmpty) {
           return message.toString();
         }
+      } else if (decoded is String && decoded.trim().isNotEmpty) {
+        return decoded;
       }
     } catch (_) {
       if (trimmedBody.startsWith('<!DOCTYPE') ||

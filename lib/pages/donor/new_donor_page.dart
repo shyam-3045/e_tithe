@@ -1,7 +1,7 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
 
@@ -45,10 +45,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
   final _streetController = TextEditingController();
   final _cityController = TextEditingController();
   final _pincodeController = TextEditingController();
-  final _organizationController = TextEditingController();
   final _contactPersonNameController = TextEditingController();
   final _addressController = TextEditingController();
-  final _addressLine2Controller = TextEditingController();
   final _mobileController = TextEditingController();
   final _whatsAppController = TextEditingController();
   final _emailController = TextEditingController();
@@ -73,7 +71,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
   XFile? _selectedPhoto;
   Uint8List? _selectedPhotoBytes;
 
-  String? _selectedTitle = 'Mr.';
+  String? _selectedTitle;
   String? _selectedGender;
   String? _selectedMaritalStatus;
   String? _selectedMembership;
@@ -91,6 +89,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
 
   String? _selectedIdentityDoc;
   static const List<String> _individualIdentityDocOptions = [
+    'NaN',
     'Aadhar',
     'PAN',
     'Passport',
@@ -98,6 +97,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
     'Driving Licence',
   ];
   static const List<String> _orgIdentityDocOptions = [
+    'NaN',
     'GST Number',
     'TAN Number',
     'Udyam Number',
@@ -108,7 +108,19 @@ class _NewDonorPageState extends State<NewDonorPage> {
   List<String> get _identityDocOptions =>
       _isOrganizationDonor ? _orgIdentityDocOptions : _individualIdentityDocOptions;
 
-  static const List<String> _titles = ['Mr.', 'Mrs.', 'Ms.', 'Dr.'];
+  static const List<String> _titles = [
+    'Mr.',
+    'Mrs.',
+    'Ms.',
+    'Dr.',
+    'Mst.',
+    'Mis.',
+    'Sir',
+    'Rev.',
+    'Ps.',
+    'Er.',
+    'Rt.',
+  ];
   static const List<String> _genders = ['Male', 'Female', 'Other'];
   static const List<String> _maritalStatuses = ['Married', 'Single', 'Other'];
   static const List<String> _membershipOptions = ['Member', 'Non-Member'];
@@ -117,6 +129,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
   String? _whatsAppServerError;
   String? _emailServerError;
   String? _identityDocServerError;
+  String _lastAutoFilledWhatsApp = '';
 
   @override
   void initState() {
@@ -127,6 +140,12 @@ class _NewDonorPageState extends State<NewDonorPage> {
     _mobileController.addListener(() {
       if (_mobileServerError != null) {
         setState(() => _mobileServerError = null);
+      }
+      final String mobileText = _mobileController.text;
+      if (_whatsAppController.text.isEmpty ||
+          _whatsAppController.text == _lastAutoFilledWhatsApp) {
+        _whatsAppController.text = mobileText;
+        _lastAutoFilledWhatsApp = mobileText;
       }
     });
     _whatsAppController.addListener(() {
@@ -155,6 +174,39 @@ class _NewDonorPageState extends State<NewDonorPage> {
     _udyamNumberController.addListener(clearIdentityError);
     _tradeLicenseController.addListener(clearIdentityError);
     _registrationNumberController.addListener(clearIdentityError);
+
+    _flatBuildingController.addListener(_updateCombinedAddress);
+    _streetController.addListener(_updateCombinedAddress);
+    _cityController.addListener(_updateCombinedAddress);
+    _pincodeController.addListener(_updateCombinedAddress);
+  }
+
+  String _buildCombinedAddress() {
+    final String flat = _flatBuildingController.text.trim();
+    final String street = _streetController.text.trim();
+    final String city = _cityController.text.trim();
+    final String district = (_selectedDistrict ?? '').trim();
+    final String pincode = _pincodeController.text.trim();
+    final String state = (_selectedState ?? '').trim();
+    final String country = (_selectedCountry ?? '').trim();
+
+    final String districtPincodeLine = [
+      district,
+      pincode,
+    ].where((String part) => part.isNotEmpty).join(' - ');
+
+    return <String>[
+      flat,
+      street,
+      city,
+      districtPincodeLine,
+      state,
+      country,
+    ].where((String line) => line.isNotEmpty).join(',\n');
+  }
+
+  void _updateCombinedAddress() {
+    _addressController.text = _buildCombinedAddress();
   }
 
   Future<void> _loadUserDataAndAreas() async {
@@ -280,10 +332,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
     _streetController.dispose();
     _cityController.dispose();
     _pincodeController.dispose();
-    _organizationController.dispose();
     _contactPersonNameController.dispose();
     _addressController.dispose();
-    _addressLine2Controller.dispose();
     _mobileController.dispose();
     _whatsAppController.dispose();
     _emailController.dispose();
@@ -321,9 +371,11 @@ class _NewDonorPageState extends State<NewDonorPage> {
 
   Future<void> _pickDate(TextEditingController controller) async {
     final DateTime now = DateTime.now();
+    // Open on the date already chosen, otherwise today.
+    final DateTime initialDate = _parseUiDate(controller.text) ?? now;
     final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: DateTime(now.year - 25),
+      initialDate: initialDate,
       firstDate: DateTime(1950),
       lastDate: DateTime(now.year + 10),
       builder: (context, child) {
@@ -483,6 +535,120 @@ class _NewDonorPageState extends State<NewDonorPage> {
   bool get _isIndividualDonor => _selectedDonorType == 1;
   bool get _isOrganizationDonor => _selectedDonorType == 2;
 
+  /// Every controller holding user-typed input, used to detect unsaved work
+  /// and to wipe the form when the donor type changes.
+  List<TextEditingController> get _inputControllers => <TextEditingController>[
+        _donorNameController,
+        _birthDateController,
+        _weddingDateController,
+        _aadharController,
+        _panController,
+        _passportController,
+        _voterIdController,
+        _drivingLicenceController,
+        _gstNumberController,
+        _tanNumberController,
+        _udyamNumberController,
+        _tradeLicenseController,
+        _registrationNumberController,
+        _flatBuildingController,
+        _streetController,
+        _cityController,
+        _pincodeController,
+        _contactPersonNameController,
+        _addressController,
+        _mobileController,
+        _whatsAppController,
+        _emailController,
+        _dependentNameController,
+        _dependentRelationshipController,
+        _dependentBirthDateController,
+        _dependentAgeController,
+      ];
+
+  bool get _hasUnsavedInput {
+    if (_inputControllers.any((c) => c.text.trim().isNotEmpty)) return true;
+    if (_dependents.isNotEmpty) return true;
+    if (_selectedPhoto != null || _selectedPhotoBytes != null) return true;
+    // Membership and donor type are set by the type selector itself, so they
+    // are deliberately not treated as user input here.
+    return _selectedTitle != null ||
+        _selectedGender != null ||
+        _selectedMaritalStatus != null ||
+        _selectedArea != null ||
+        _selectedState != null ||
+        _selectedDistrict != null ||
+        _selectedCountry != null ||
+        _selectedIdentityDoc != null;
+  }
+
+  /// Clears entered data. Not wrapped in setState: the caller follows this with
+  /// [_selectDonorType], whose setState rebuilds the form.
+  void _clearEnteredData() {
+    for (final TextEditingController controller in _inputControllers) {
+      controller.clear();
+    }
+    _dependents.clear();
+    _selectedPhoto = null;
+    _selectedPhotoBytes = null;
+    _selectedTitle = null;
+    _selectedGender = null;
+    _selectedMaritalStatus = null;
+    _selectedArea = null;
+    _selectedRegionId = null;
+    _selectedState = null;
+    _selectedDistrict = null;
+    _selectedCountry = null;
+    _selectedIdentityDoc = null;
+  }
+
+  Future<void> _handleDonorTypeChange(int value) async {
+    if (_selectedDonorType == value) return;
+
+    // Only warn once a type is chosen and there is something to lose.
+    if (_hasSelectedDonorType && _hasUnsavedInput) {
+      final bool? discard = await showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+            ),
+            title: const Text('Discard changes?'),
+            content: Text(
+              'Switching to ${value == 1 ? 'Individual' : 'Others'} will clear '
+              'the details you have entered.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text(
+                  'Cancel',
+                  style: TextStyle(color: AppColors.textGrey),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text(
+                  'Discard',
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      );
+
+      if (discard != true || !mounted) return;
+      _clearEnteredData();
+    }
+
+    _selectDonorType(value);
+  }
+
   void _selectDonorType(int value) {
     setState(() {
       _selectedDonorType = value;
@@ -495,7 +661,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
         _weddingDateController.clear();
         _dependents.clear();
       } else {
-        _selectedTitle = 'Mr.';
+        // Left blank on purpose: the user must pick a title explicitly.
+        _selectedTitle = null;
         _contactPersonNameController.clear();
       }
       _selectedIdentityDoc = null;
@@ -622,8 +789,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
           _isOrganizationDonor ? _donorNameController.text.trim() : '',
       'contactPersonName':
           _isOrganizationDonor ? _contactPersonNameController.text.trim() : '',
-      'address': _addressController.text.trim(),
-      'addressLine2': _addressLine2Controller.text.trim(),
+      'address': _flatBuildingController.text.trim(),
+      'addressLine2': _buildCombinedAddress(),
       'country': (_selectedCountry ?? '').trim(),
       'areaName': _selectedArea ?? '',
       'type': _selectedDonorType ?? 0,
@@ -694,10 +861,14 @@ class _NewDonorPageState extends State<NewDonorPage> {
     final List<String> validationErrors = [];
 
     if (_isOrganizationDonor) {
-      if (_organizationController.text.trim().isEmpty) {
+      if (_donorNameController.text.trim().isEmpty) {
         validationErrors.add('Organization Name is required');
       }
     } else {
+      // Title is only shown for individual donors.
+      if ((_selectedTitle ?? '').trim().isEmpty) {
+        validationErrors.add('Title is required');
+      }
       if (_donorNameController.text.trim().isEmpty) {
         validationErrors.add('Donor Name is required');
       }
@@ -705,7 +876,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
 
     if (_selectedIdentityDoc == null || _selectedIdentityDoc!.isEmpty) {
       validationErrors.add('Identity Document Type is required');
-    } else {
+    } else if (_selectedIdentityDoc != 'NaN') {
       final String idVal = _selectedIdentityController.text.trim();
       if (idVal.isEmpty) {
         validationErrors.add('$_selectedIdentityLabel is required');
@@ -730,9 +901,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
     }
 
     final String emailVal = _emailController.text.trim();
-    if (emailVal.isEmpty) {
-      validationErrors.add('Email is required');
-    } else {
+    if (emailVal.isNotEmpty) {
       final bool isValid = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$').hasMatch(emailVal);
       if (!isValid) {
         validationErrors.add('Enter a valid email address');
@@ -1038,7 +1207,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
               children: [
                 _DonorTypeSelector(
                   value: _selectedDonorType,
-                  onChanged: _selectDonorType,
+                  onChanged: _handleDonorTypeChange,
                 ),
                 const SizedBox(height: 18),
                 IgnorePointer(
@@ -1074,11 +1243,17 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             Row(
                               children: [
                                 Expanded(
-                                  flex: 2,
+                                  // flex 3, not 2: at 2 the field is ~90dp and
+                                  // the 32dp padding + 24dp chevron leave too
+                                  // little for 'Mrs.'/'Mst.', so every entry
+                                  // ellipsised away and the field looked empty.
+                                  // No prefix icon here for the same reason.
+                                  flex: 3,
                                   child: _DropdownField<String>(
                                     value: _selectedTitle,
                                     items: _titles,
-                                    icon: Icons.arrow_drop_down_rounded,
+                                    hintText: 'Title',
+                                    isRequired: true,
                                     onChanged: (value) {
                                       setState(() {
                                         _selectedTitle = value;
@@ -1129,7 +1304,8 @@ class _NewDonorPageState extends State<NewDonorPage> {
                               });
                             },
                           ),
-                          if (_selectedIdentityDoc != null) ...[
+                          if (_selectedIdentityDoc != null &&
+                              _selectedIdentityDoc != 'NaN') ...[
                             const SizedBox(height: 16),
                             _StyledTextField(
                               controller: _selectedIdentityController,
@@ -1325,27 +1501,6 @@ class _NewDonorPageState extends State<NewDonorPage> {
                                 _requiredValidator(value, 'City is required'),
                           ),
                           const SizedBox(height: 16),
-                          _StyledTextField(
-                            controller: _pincodeController,
-                            label: 'Pincode',
-                            icon: Icons.markunread_mailbox_rounded,
-                            isRequired: true,
-                            keyboardType: TextInputType.number,
-                            validator: (value) {
-                              final String? error = _requiredValidator(
-                                value,
-                                'Pincode is required',
-                              );
-                              if (error != null) {
-                                return error;
-                              }
-                              if ((value ?? '').trim().length < 6) {
-                                return 'Enter a valid pincode';
-                              }
-                              return null;
-                            },
-                          ),
-                          const SizedBox(height: 16),
                           _DropdownField<String>(
                             value: _selectedDistrict,
                             items: {
@@ -1364,7 +1519,33 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             onChanged: (value) {
                               setState(() {
                                 _selectedDistrict = value;
+                                _updateCombinedAddress();
                               });
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          _StyledTextField(
+                            controller: _pincodeController,
+                            label: 'Pincode',
+                            icon: Icons.markunread_mailbox_rounded,
+                            isRequired: true,
+                            keyboardType: TextInputType.number,
+                            maxLength: 6,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
+                            validator: (value) {
+                              final String? error = _requiredValidator(
+                                value,
+                                'Pincode is required',
+                              );
+                              if (error != null) {
+                                return error;
+                              }
+                              if ((value ?? '').trim().length < 6) {
+                                return 'Pincode must have 6 digits';
+                              }
+                              return null;
                             },
                           ),
                           const SizedBox(height: 16),
@@ -1386,6 +1567,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             onChanged: (value) {
                               setState(() {
                                 _selectedState = value;
+                                _updateCombinedAddress();
                               });
                             },
                           ),
@@ -1408,6 +1590,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             onChanged: (value) {
                               setState(() {
                                 _selectedCountry = value;
+                                _updateCombinedAddress();
                               });
                             },
                           ),
@@ -1433,6 +1616,10 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             icon: Icons.phone_android_rounded,
                             isRequired: true,
                             keyboardType: TextInputType.phone,
+                            maxLength: 10,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             validator: (value) {
                               if (_mobileServerError != null) {
                                 return _mobileServerError;
@@ -1445,7 +1632,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
                                 return error;
                               }
                               if ((value ?? '').trim().length < 10) {
-                                return 'Enter a valid mobile number';
+                                return 'Mobile number must have 10 digits';
                               }
                               return null;
                             },
@@ -1459,6 +1646,10 @@ class _NewDonorPageState extends State<NewDonorPage> {
                             icon: Icons.message_outlined,
                             isRequired: true,
                             keyboardType: TextInputType.phone,
+                            maxLength: 10,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             validator: (value) {
                               if (_whatsAppServerError != null) {
                                 return _whatsAppServerError;
@@ -1471,7 +1662,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
                                 return error;
                               }
                               if ((value ?? '').trim().length < 10) {
-                                return 'Enter a valid WhatsApp number';
+                                return 'WhatsApp number must have 10 digits';
                               }
                               return null;
                             },
@@ -1483,7 +1674,6 @@ class _NewDonorPageState extends State<NewDonorPage> {
                                 ? 'Contact Email'
                                 : 'Email',
                             icon: Icons.email_outlined,
-                            isRequired: true,
                             keyboardType: TextInputType.emailAddress,
                             validator: (value) {
                               if (_emailServerError != null) {
@@ -1491,7 +1681,7 @@ class _NewDonorPageState extends State<NewDonorPage> {
                               }
                               final String input = (value ?? '').trim();
                               if (input.isEmpty) {
-                                return 'Email is required';
+                                return null;
                               }
                               final bool isValid = RegExp(
                                 r'^[^@\s]+@[^@\s]+\.[^@\s]+$',
@@ -1503,17 +1693,10 @@ class _NewDonorPageState extends State<NewDonorPage> {
                           _StyledTextField(
                             controller: _addressController,
                             label: _isOrganizationDonor
-                                ? 'Contact Address Line 1'
-                                : 'Address Line 1',
+                                ? 'Contact Address'
+                                : 'Address',
                             icon: Icons.home_rounded,
-                          ),
-                          const SizedBox(height: 16),
-                          _StyledTextField(
-                            controller: _addressLine2Controller,
-                            label: _isOrganizationDonor
-                                ? 'Contact Address Line 2'
-                                : 'Address Line 2',
-                            icon: Icons.home_work_rounded,
+                            maxLines: null,
                           ),
                         ],
                       ),
@@ -1710,6 +1893,9 @@ class _StyledTextField extends StatelessWidget {
     this.readOnly = false,
     this.isRequired = false,
     this.textCapitalization = TextCapitalization.words,
+    this.maxLines = 1,
+    this.maxLength,
+    this.inputFormatters,
   });
 
   final TextEditingController controller;
@@ -1721,6 +1907,9 @@ class _StyledTextField extends StatelessWidget {
   final bool readOnly;
   final bool isRequired;
   final TextCapitalization textCapitalization;
+  final int? maxLines;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -1730,6 +1919,13 @@ class _StyledTextField extends StatelessWidget {
       keyboardType: keyboardType,
       readOnly: readOnly,
       onTap: onTap,
+      maxLines: maxLines,
+      maxLength: maxLength,
+      buildCounter: maxLength == null
+          ? null
+          : (context, {required currentLength, required isFocused, maxLength}) =>
+              null,
+      inputFormatters: inputFormatters,
       textCapitalization: textCapitalization,
       style: const TextStyle(
         color: AppColors.textDark,
@@ -1754,8 +1950,8 @@ class _StyledTextField extends StatelessWidget {
 class _DropdownField<T> extends StatelessWidget {
   const _DropdownField({
     required this.items,
-    required this.icon,
     required this.onChanged,
+    this.icon,
     this.value,
     this.hintText,
     this.validator,
@@ -1765,28 +1961,35 @@ class _DropdownField<T> extends StatelessWidget {
 
   final T? value;
   final List<T> items;
-  final IconData icon;
+  final IconData? icon;
   final ValueChanged<T?> onChanged;
   final String? hintText;
   final String? Function(T?)? validator;
   final bool isRequired;
   final String Function(T value)? itemLabelBuilder;
 
+  /// Show about 5 rows, then scroll, so long lists (titles, states, countries)
+  /// don't open a menu that covers the whole screen.
+  static const double _menuMaxHeight = (kMinInteractiveDimension * 5) + 16;
+
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<T>(
       isExpanded: true,
+      menuMaxHeight: _menuMaxHeight,
       value: value,
       validator: validator,
       decoration: _fieldDecoration(
         label: value == null ? '' : hintText ?? '',
         icon: icon,
-        isRequired: isRequired,
+        // With no value there is no label text, so a bare ' *' would float
+        // above the field on its own. Carry the marker on the hint instead.
+        isRequired: isRequired && value != null,
       ),
       hint: hintText == null
           ? null
           : Text(
-              hintText!,
+              isRequired ? '$hintText *' : hintText!,
               style: const TextStyle(color: AppColors.textGrey, fontSize: 16),
             ),
       dropdownColor: AppColors.surface,
@@ -2226,11 +2429,21 @@ class _DependentDraft {
   final String modifiedBy;
 
   Map<String, dynamic> toJson() {
+    final DateTime? birthDate = relationBirthDate;
     return <String, dynamic>{
       'relationID': relationID,
       'donorID': donorID,
       'relationName': relationName,
-      'relationBirthDate': relationBirthDate?.toUtc().toIso8601String(),
+      // Send the picked calendar date as UTC midnight. Using toUtc() on a
+      // local midnight shifts the date back a day in positive-offset zones
+      // (e.g. IST 04/08 00:00 -> 03/08 18:30Z).
+      'relationBirthDate': birthDate == null
+          ? null
+          : DateTime.utc(
+              birthDate.year,
+              birthDate.month,
+              birthDate.day,
+            ).toIso8601String(),
       'relationAge': relationAge,
       'relationshipToDonor': relationshipToDonor,
       'deleted': deleted,
@@ -2301,7 +2514,7 @@ class _DependentTile extends StatelessWidget {
 
 InputDecoration _fieldDecoration({
   required String label,
-  required IconData icon,
+  IconData? icon,
   Widget? suffixIcon,
   bool isRequired = false,
 }) {
@@ -2317,7 +2530,7 @@ InputDecoration _fieldDecoration({
     ),
     filled: true,
     fillColor: AppColors.surface,
-    prefixIcon: Icon(icon, color: AppColors.iconPurple),
+    prefixIcon: icon == null ? null : Icon(icon, color: AppColors.iconPurple),
     suffixIcon: suffixIcon,
     enabledBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(18),

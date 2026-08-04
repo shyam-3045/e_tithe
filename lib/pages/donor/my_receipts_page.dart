@@ -381,14 +381,29 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
     final String donorEmail = fundDetails.isNotEmpty
         ? fundDetails.first.donorEmail
         : '';
+    final String companyName = fundDetails.isNotEmpty
+        ? fundDetails.first.companyName
+        : '';
+
+    // The receipt list response carries no address fields, so item.addressLines
+    // falls back to 'Address not provided'. Prefer donorAddress from the fund
+    // details response, which has the full address.
+    final String apiDonorAddress =
+        fundDetails.isNotEmpty ? fundDetails.first.donorAddress.trim() : '';
+    final String address = apiDonorAddress.isNotEmpty
+        ? apiDonorAddress
+        : item.addressLines.join(', ');
+    // donorAddress already ends with '<district> - <pincode>', so appending the
+    // pincode again downstream would duplicate it.
+    final String pincode = apiDonorAddress.isNotEmpty ? '' : item.pincode;
 
     return ReceiptExportData(
       receiptId: item.receiptId,
       receiptNo: item.receiptNo,
       receiptDate: _formatDate(item.date),
       donorName: item.donorDisplayName,
-      address: item.addressLines.join(', '),
-      pincode: item.pincode,
+      address: address,
+      pincode: pincode,
       fundType: item.fundType,
       amount: 'INR ${_formatMoney(item.amount)}',
       paymentMode: item.paymentMode,
@@ -397,6 +412,7 @@ class _MyReceiptsPageState extends State<MyReceiptsPage> {
       fundDetails: fundDetails,
       donorMobile: donorMobile.trim(),
       donorEmail: donorEmail.trim(),
+      companyName: companyName.trim(),
     );
   }
 
@@ -1349,6 +1365,7 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
         amount: widget.receipt.amount,
         donorMobile: widget.receipt.mobile,
         donorEmail: '',
+        donorAddress: widget.receipt.addressLines.join(', '),
         signURL: '',
       )
     ];
@@ -1548,7 +1565,7 @@ class _ReceiptViewPageState extends State<_ReceiptViewPage> {
                       ),
                       _ReceiptLine(
                         icon: Icons.calendar_month_rounded,
-                        label: '${_formatDateTime(widget.receipt.date)}',
+                        label: _formatDate(widget.receipt.date),
                       ),
                       _ReceiptLine(
                         icon: Icons.currency_rupee_rounded,
@@ -1954,23 +1971,6 @@ String _formatDate(DateTime date) {
   final String mm = date.month.toString().padLeft(2, '0');
   final String yyyy = date.year.toString();
   return '$dd/$mm/$yyyy';
-}
-
-String _formatDateTime(DateTime date) {
-  String two(int n) => n.toString().padLeft(2, '0');
-  final String dd = two(date.day);
-  final String mm = two(date.month);
-  final String yyyy = date.year.toString();
-
-  int hour = date.hour;
-  final String ampm = hour >= 12 ? 'PM' : 'AM';
-  hour = hour % 12;
-  if (hour == 0) hour = 12;
-
-  final String hh = two(hour);
-  final String min = two(date.minute);
-
-  return '$dd/$mm/$yyyy $hh:$min $ampm';
 }
 
 String _formatMoney(double value) {

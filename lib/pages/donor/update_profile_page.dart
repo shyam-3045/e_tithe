@@ -1,6 +1,5 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 
@@ -10,6 +9,7 @@ import '../../common/widgets/common_alert.dart';
 import '../../common/services/auth_service.dart';
 import '../../common/services/area_service.dart';
 import '../../common/services/donor_service.dart';
+import '../../common/services/location_service.dart';
 import '../../common/models/user_data.dart';
 import 'dependent_page.dart';
 
@@ -43,6 +43,14 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
   final _voterIdController = TextEditingController();
   final _drivingLicenceController = TextEditingController();
 
+  // Org identity doc controllers
+  final _gstNumberController = TextEditingController();
+  final _tanNumberController = TextEditingController();
+  final _udyamNumberController = TextEditingController();
+  final _tradeLicenseController = TextEditingController();
+  final _registrationNumberController = TextEditingController();
+  final _contactPersonNameController = TextEditingController();
+
   // Address
   final _flatBuildingController = TextEditingController();
   final _streetController = TextEditingController();
@@ -61,6 +69,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
   final _dependentBirthDateController = TextEditingController();
   final _dependentAgeController = TextEditingController();
   final List<_DependentDraft> _dependents = <_DependentDraft>[];
+  int? _editingDependentIndex;
 
   List<AreaOption> _areaOptions = <AreaOption>[];
   bool _loadingAreas = false;
@@ -76,30 +85,53 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
   String? _selectedMembership;
   String? _selectedArea;
   String? _selectedState;
+  String? _selectedCountry;
   int? _selectedDonorType;
 
   String? _selectedIdentityDoc;
-  static const List<String> _identityDocOptions = [
+  static const List<String> _individualIdentityDocOptions = [
+    'NaN',
     'Aadhar',
     'PAN',
     'Passport',
     'Voter ID',
     'Driving Licence',
   ];
+  static const List<String> _orgIdentityDocOptions = [
+    'NaN',
+    'GST Number',
+    'TAN Number',
+    'Udyam Number',
+    'Trade License Number',
+    'Registration Number',
+  ];
 
-  static const List<String> _titles = ['Mr.', 'Mrs.', 'Ms.', 'Dr.'];
+  List<String> get _identityDocOptions =>
+      _isOrganizationDonor ? _orgIdentityDocOptions : _individualIdentityDocOptions;
+
+  String _lastAutoFilledWhatsApp = '';
+
+  static const List<String> _titles = [
+    'Mr.',
+    'Mrs.',
+    'Ms.',
+    'Dr.',
+    'Mst.',
+    'Mis.',
+    'Sir',
+    'Rev.',
+    'Ps.',
+    'Er.',
+    'Rt.',
+  ];
   static const List<String> _genders = ['Male', 'Female', 'Other'];
   static const List<String> _maritalStatuses = ['Married', 'Single', 'Other'];
   static const List<String> _membershipOptions = ['Member', 'Non-Member'];
-  static const List<String> _states = [
-    'Odisha',
-    'Andhra Pradesh',
-    'Delhi',
-    'Karnataka',
-    'Maharashtra',
-    'Tamil Nadu',
-    'West Bengal',
-  ];
+
+  List<StateOption> _stateOptions = <StateOption>[];
+  bool _loadingStates = false;
+  List<CountryOption> _countryOptions = <CountryOption>[];
+  bool _loadingCountries = false;
 
   @override
   void initState() {
@@ -110,6 +142,51 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     _loadUserData();
     _loadDonorFromApi();
     _loadAreas();
+    _loadStates();
+    _loadCountries();
+
+    _flatBuildingController.addListener(_updateCombinedAddress);
+    _streetController.addListener(_updateCombinedAddress);
+    _cityController.addListener(_updateCombinedAddress);
+    _districtController.addListener(_updateCombinedAddress);
+    _pincodeController.addListener(_updateCombinedAddress);
+
+    _mobileController.addListener(() {
+      final String mobileText = _mobileController.text;
+      if (_whatsAppController.text.isEmpty ||
+          _whatsAppController.text == _lastAutoFilledWhatsApp) {
+        _whatsAppController.text = mobileText;
+        _lastAutoFilledWhatsApp = mobileText;
+      }
+    });
+  }
+
+  String _buildCombinedAddress() {
+    final String flat = _flatBuildingController.text.trim();
+    final String street = _streetController.text.trim();
+    final String city = _cityController.text.trim();
+    final String district = _districtController.text.trim();
+    final String pincode = _pincodeController.text.trim();
+    final String state = (_selectedState ?? '').trim();
+    final String country = (_selectedCountry ?? '').trim();
+
+    final String districtPincodeLine = [
+      district,
+      pincode,
+    ].where((String part) => part.isNotEmpty).join(' - ');
+
+    return <String>[
+      flat,
+      street,
+      city,
+      districtPincodeLine,
+      state,
+      country,
+    ].where((String line) => line.isNotEmpty).join(',\n');
+  }
+
+  void _updateCombinedAddress() {
+    _addressController.text = _buildCombinedAddress();
   }
 
   Future<void> _loadUserData() async {
@@ -141,6 +218,56 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       if (!mounted) return;
       setState(() {
         _loadingAreas = false;
+      });
+    }
+  }
+
+  Future<void> _loadStates() async {
+    setState(() {
+      _loadingStates = true;
+    });
+
+    try {
+      final List<StateOption> states =
+          await LocationService.instance.fetchStates();
+      if (!mounted) return;
+      setState(() {
+        _stateOptions = states;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _stateOptions = <StateOption>[];
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _loadingStates = false;
+      });
+    }
+  }
+
+  Future<void> _loadCountries() async {
+    setState(() {
+      _loadingCountries = true;
+    });
+
+    try {
+      final List<CountryOption> countries =
+          await LocationService.instance.fetchCountries();
+      if (!mounted) return;
+      setState(() {
+        _countryOptions = countries;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _countryOptions = <CountryOption>[];
+      });
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _loadingCountries = false;
       });
     }
   }
@@ -190,9 +317,9 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
         _cityController.text = donor.city;
         _pincodeController.text = donor.pincode;
         _districtController.text = donor.district;
-        _addressController.text = donor.address;
         _mobileController.text = donor.mobile;
         _whatsAppController.text = donor.whatsApp;
+        _contactPersonNameController.text = donor.contactPersonName;
         _emailController.text = donor.email;
         _photoUrlController.text = donor.photo;
         _birthDateController.text = donor.birthDate;
@@ -202,13 +329,33 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
         _passportController.text = donor.passport;
         _voterIdController.text = donor.voterId;
         _drivingLicenceController.text = donor.drivingLicence;
+        _gstNumberController.text = donor.gstNumber;
+        _tanNumberController.text = donor.tanNumber;
+        _udyamNumberController.text = donor.udyamNumber;
+        _tradeLicenseController.text = donor.tradeLicenseNumber;
+        _registrationNumberController.text = donor.registrationNumber;
         _selectedDonorType = donor.type > 0 ? donor.type : null;
         _selectedMembership = donor.type == 1
             ? 'Member'
             : donor.type == 2
                 ? 'Non-Member'
                 : null;
-        if (donor.panNo.trim().isNotEmpty && donor.aadharNo.trim().isEmpty) {
+        if (donor.type == 2) {
+          if (donor.gstNumber.trim().isNotEmpty) {
+            _selectedIdentityDoc = 'GST Number';
+          } else if (donor.tanNumber.trim().isNotEmpty) {
+            _selectedIdentityDoc = 'TAN Number';
+          } else if (donor.udyamNumber.trim().isNotEmpty) {
+            _selectedIdentityDoc = 'Udyam Number';
+          } else if (donor.tradeLicenseNumber.trim().isNotEmpty) {
+            _selectedIdentityDoc = 'Trade License Number';
+          } else if (donor.registrationNumber.trim().isNotEmpty) {
+            _selectedIdentityDoc = 'Registration Number';
+          } else {
+            _selectedIdentityDoc = 'NaN';
+          }
+        } else if (donor.panNo.trim().isNotEmpty &&
+            donor.aadharNo.trim().isEmpty) {
           _selectedIdentityDoc = 'PAN';
         } else if (donor.passport.trim().isNotEmpty) {
           _selectedIdentityDoc = 'Passport';
@@ -219,12 +366,12 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
         } else if (donor.aadharNo.trim().isNotEmpty) {
           _selectedIdentityDoc = 'Aadhar';
         } else {
-          _selectedIdentityDoc = null;
+          _selectedIdentityDoc = 'NaN';
         }
 
-        if (_states.contains(donor.state)) {
-          _selectedState = donor.state;
-        }
+        _selectedState = donor.state.trim().isEmpty ? null : donor.state;
+        _selectedCountry =
+            donor.country.trim().isEmpty ? null : donor.country;
 
         if (donor.areaId > 0) {
           _selectedAreaId = donor.areaId;
@@ -235,22 +382,28 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
           ..addAll(
             donor.dependents.map(
               (d) => _DependentDraft(
-                relationID: 0,
-                donorID: donor.donorId,
+                relationID: d.relationId,
+                donorID: d.donorId > 0 ? d.donorId : donor.donorId,
                 relationName: d.name,
                 relationshipToDonor: d.relation,
-                relationBirthDate: null,
-                relationAge: '',
-                deleted: false,
-                createdOn: DateTime.now().toUtc(),
-                createdBy: 'mobile-app',
-                modifiedOn: DateTime.now().toUtc(),
-                modifiedBy: 'mobile-app',
+                relationBirthDate: d.relationBirthDate,
+                relationAge: d.relationAge,
+                deleted: d.deleted,
+                createdOn: d.createdOn ?? DateTime.now().toUtc(),
+                createdBy: d.createdBy.isEmpty ? 'mobile-app' : d.createdBy,
+                modifiedOn: d.modifiedOn ?? DateTime.now().toUtc(),
+                modifiedBy: d.modifiedBy.isEmpty ? 'mobile-app' : d.modifiedBy,
+                fromServer: true,
               ),
             ),
           );
       });
 
+      if (donor.addressLine2.trim().isNotEmpty) {
+        _addressController.text = donor.addressLine2;
+      } else {
+        _updateCombinedAddress();
+      }
       _syncAreaSelection();
     } catch (error) {
       if (!mounted) return;
@@ -272,6 +425,12 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     _passportController.dispose();
     _voterIdController.dispose();
     _drivingLicenceController.dispose();
+    _gstNumberController.dispose();
+    _tanNumberController.dispose();
+    _udyamNumberController.dispose();
+    _tradeLicenseController.dispose();
+    _registrationNumberController.dispose();
+    _contactPersonNameController.dispose();
     _flatBuildingController.dispose();
     _streetController.dispose();
     _cityController.dispose();
@@ -291,11 +450,19 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
 
   Future<void> _pickDate(TextEditingController controller) async {
     final DateTime now = DateTime.now();
+    final DateTime firstDate = DateTime(1950);
+    final DateTime lastDate = DateTime(now.year + 10);
+    // Open on the date already held by the field, otherwise today. Dates loaded
+    // from the donor record are clamped into range: showDatePicker asserts if
+    // initialDate falls outside firstDate/lastDate.
+    DateTime initialDate = _parseDateFlexible(controller.text) ?? now;
+    if (initialDate.isBefore(firstDate)) initialDate = firstDate;
+    if (initialDate.isAfter(lastDate)) initialDate = lastDate;
     final DateTime? pickedDate = await showDatePicker(
       context: context,
-      initialDate: DateTime(now.year - 25),
-      firstDate: DateTime(1950),
-      lastDate: DateTime(now.year + 10),
+      initialDate: initialDate,
+      firstDate: firstDate,
+      lastDate: lastDate,
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
@@ -370,26 +537,73 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
 
     final DateTime now = DateTime.now().toUtc();
     final int donorId = widget.donorId ?? _loadedDonor?.donorId ?? 0;
+    final int? editingIndex = _editingDependentIndex;
 
     setState(() {
-      _dependents.add(
-        _DependentDraft(
-          relationID: 0,
-          donorID: donorId,
+      if (editingIndex != null && editingIndex < _dependents.length) {
+        // copyWith so fields not shown in the form (relationID, donorID,
+        // createdOn/By, fromServer) survive an edit.
+        _dependents[editingIndex] = _dependents[editingIndex].copyWith(
           relationName: name,
           relationshipToDonor: relationship,
           relationBirthDate: _parseDateFlexible(
             _dependentBirthDateController.text,
           ),
+          overwriteBirthDate: true,
           relationAge: _dependentAgeController.text.trim(),
-          deleted: false,
-          createdOn: now,
-          createdBy: 'mobile-app',
           modifiedOn: now,
           modifiedBy: 'mobile-app',
-        ),
-      );
+        );
+      } else {
+        _dependents.add(
+          _DependentDraft(
+            relationID: 0,
+            donorID: donorId,
+            relationName: name,
+            relationshipToDonor: relationship,
+            relationBirthDate: _parseDateFlexible(
+              _dependentBirthDateController.text,
+            ),
+            relationAge: _dependentAgeController.text.trim(),
+            deleted: false,
+            createdOn: now,
+            createdBy: 'mobile-app',
+            modifiedOn: now,
+            modifiedBy: 'mobile-app',
+          ),
+        );
+      }
 
+      _editingDependentIndex = null;
+      _dependentNameController.clear();
+      _dependentRelationshipController.clear();
+      _dependentBirthDateController.clear();
+      _dependentAgeController.clear();
+    });
+  }
+
+  void _startEditDependent(int index) {
+    if (index < 0 || index >= _dependents.length) return;
+    final _DependentDraft dependent = _dependents[index];
+
+    setState(() {
+      _editingDependentIndex = index;
+      _dependentsExpanded = true;
+      _dependentNameController.text = dependent.relationName;
+      _dependentRelationshipController.text = dependent.relationshipToDonor;
+      _dependentAgeController.text = dependent.relationAge;
+      final DateTime? birthDate = dependent.relationBirthDate;
+      _dependentBirthDateController.text = birthDate == null
+          ? ''
+          : '${birthDate.day.toString().padLeft(2, '0')}/'
+              '${birthDate.month.toString().padLeft(2, '0')}/'
+              '${birthDate.year}';
+    });
+  }
+
+  void _cancelEditDependent() {
+    setState(() {
+      _editingDependentIndex = null;
       _dependentNameController.clear();
       _dependentRelationshipController.clear();
       _dependentBirthDateController.clear();
@@ -449,9 +663,82 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     });
   }
 
-  void _removeDependentAt(int index) {
+  Future<void> _removeDependentAt(int index) async {
+    if (index < 0 || index >= _dependents.length) return;
+    final _DependentDraft target = _dependents[index];
+    // Don't key this off relationID: the donor GET response does not always
+    // populate it, and a missing ID would silently downgrade the soft delete
+    // into a drop-from-list, which the backend never sees.
+    final bool existsOnServer = target.fromServer || target.relationID > 0;
+
+    final String label = target.relationName.trim().isEmpty
+        ? 'this dependent'
+        : target.relationName.trim();
+
+    final bool? confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: const Text('Delete dependent?'),
+          content: Text(
+            'Are you sure you want to delete $label? '
+            'This will be removed when you update the donor.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text(
+                'Cancel',
+                style: TextStyle(color: AppColors.textGrey),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text(
+                'Delete',
+                style: TextStyle(
+                  color: Colors.redAccent,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true || !mounted) return;
+    // Re-check bounds: the list index was captured before the dialog await.
+    if (index >= _dependents.length) return;
+
     setState(() {
-      _dependents.removeAt(index);
+      if (existsOnServer) {
+        // Soft delete: keep it in the payload flagged as deleted so the
+        // backend removes the saved record. Hidden from the list below.
+        _dependents[index] = target.copyWith(
+          deleted: true,
+          modifiedOn: DateTime.now().toUtc(),
+          modifiedBy: 'mobile-app',
+        );
+      } else {
+        // Never saved, so there is nothing for the backend to delete.
+        _dependents.removeAt(index);
+      }
+
+      if (_editingDependentIndex == index) {
+        _editingDependentIndex = null;
+        _dependentNameController.clear();
+        _dependentRelationshipController.clear();
+        _dependentBirthDateController.clear();
+        _dependentAgeController.clear();
+      } else if (!existsOnServer &&
+          _editingDependentIndex != null &&
+          _editingDependentIndex! > index) {
+        _editingDependentIndex = _editingDependentIndex! - 1;
+      }
     });
   }
 
@@ -461,6 +748,11 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     _passportController.clear();
     _voterIdController.clear();
     _drivingLicenceController.clear();
+    _gstNumberController.clear();
+    _tanNumberController.clear();
+    _udyamNumberController.clear();
+    _tradeLicenseController.clear();
+    _registrationNumberController.clear();
   }
 
   TextEditingController get _selectedIdentityController {
@@ -473,6 +765,16 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
         return _voterIdController;
       case 'Driving Licence':
         return _drivingLicenceController;
+      case 'GST Number':
+        return _gstNumberController;
+      case 'TAN Number':
+        return _tanNumberController;
+      case 'Udyam Number':
+        return _udyamNumberController;
+      case 'Trade License Number':
+        return _tradeLicenseController;
+      case 'Registration Number':
+        return _registrationNumberController;
       case 'Aadhar':
       case null:
       default:
@@ -490,6 +792,16 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
         return 'Voter ID';
       case 'Driving Licence':
         return 'Driving Licence';
+      case 'GST Number':
+        return 'GST Number';
+      case 'TAN Number':
+        return 'TAN Number';
+      case 'Udyam Number':
+        return 'Udyam Number';
+      case 'Trade License Number':
+        return 'Trade License Number';
+      case 'Registration Number':
+        return 'Registration Number';
       case 'Aadhar':
       case null:
       default:
@@ -518,6 +830,8 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
   }
 
   bool get _hasSelectedDonorType => _selectedDonorType != null;
+  bool get _isIndividualDonor => _selectedDonorType == 1;
+  bool get _isOrganizationDonor => _selectedDonorType == 2;
 
   void _selectDonorType(int value) {
     setState(() {
@@ -540,51 +854,14 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
     final int fieldStaffId = userTypeID == 3 ? currentUserId : 0;
     final int localMemberId = userTypeID == 4 ? currentUserId : 0;
 
-    final Map<String, _DependentDraft> mergedDependents =
-        <String, _DependentDraft>{};
-
-    void addDependent(_DependentDraft draft) {
-      final String key =
-          '${draft.relationName.toLowerCase()}|${draft.relationshipToDonor.toLowerCase()}';
-      final _DependentDraft? existing = mergedDependents[key];
-      if (existing != null &&
-          existing.relationID != 0 &&
-          draft.relationID == 0) {
-        return;
-      }
-      mergedDependents[key] = draft;
-    }
-
-    for (final DonorDependent d
-        in donor?.dependents ?? const <DonorDependent>[]) {
-      addDependent(
-        _DependentDraft(
-          relationID: d.relationId,
-          donorID: d.donorId,
-          relationName: d.name,
-          relationshipToDonor: d.relation,
-          relationBirthDate: d.relationBirthDate,
-          relationAge: d.relationAge,
-          deleted: d.deleted,
-          createdOn: d.createdOn ?? now,
-          createdBy: d.createdBy.isEmpty ? updatedBy : d.createdBy,
-          modifiedOn: d.modifiedOn ?? now,
-          modifiedBy: d.modifiedBy.isEmpty ? updatedBy : d.modifiedBy,
-        ),
-      );
-    }
-
-    for (final _DependentDraft d in _dependents) {
-      addDependent(d);
-    }
-
     final List<Map<String, dynamic>> dependentsPayload =
-        mergedDependents.values.map((d) => d.toJson()).toList();
+        _dependents.map((d) => d.toJson()).toList();
 
     return <String, dynamic>{
       'donorID': widget.donorId ?? 0,
       'donorName': _donorNameController.text.trim(),
-      'salutation': _selectedDonorType == 2 ? '' : _selectedTitle.trim(),
+      'salutation': _isOrganizationDonor ? '' : _selectedTitle.trim(),
+      // Individual identity docs
       'panNumber':
           _selectedIdentityDoc == 'PAN' ? _panController.text.trim() : '',
       'aadhaarNumber':
@@ -598,16 +875,43 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       'drivingLicence': _selectedIdentityDoc == 'Driving Licence'
           ? _drivingLicenceController.text.trim()
           : '',
-      'birthDate': _toApiDateString(
-        _parseDateFlexible(_birthDateController.text),
-      ),
-      'marriageDate': (_selectedMaritalStatus == 'Married')
-          ? _toApiDateString(_parseDateFlexible(_weddingDateController.text))
-          : null,
-      'gender': (_selectedGender ?? '').trim(),
-      'maritalStatus': (_selectedMaritalStatus ?? '').trim(),
+      // Org identity docs
+      'gstNumber': _selectedIdentityDoc == 'GST Number'
+          ? _gstNumberController.text.trim()
+          : '',
+      'tanNumber': _selectedIdentityDoc == 'TAN Number'
+          ? _tanNumberController.text.trim()
+          : '',
+      'udyamNumber': _selectedIdentityDoc == 'Udyam Number'
+          ? _udyamNumberController.text.trim()
+          : '',
+      'tradeLicenseNumber': _selectedIdentityDoc == 'Trade License Number'
+          ? _tradeLicenseController.text.trim()
+          : '',
+      'registrationNumber': _selectedIdentityDoc == 'Registration Number'
+          ? _registrationNumberController.text.trim()
+          : '',
+      'birthDate': _isOrganizationDonor
+          ? null
+          : _toApiDateString(_parseDateFlexible(_birthDateController.text)),
+      'marriageDate':
+          (_isIndividualDonor && _selectedMaritalStatus == 'Married')
+              ? _toApiDateString(
+                  _parseDateFlexible(_weddingDateController.text),
+                )
+              : null,
+      'gender': _isOrganizationDonor ? '' : (_selectedGender ?? '').trim(),
+      'maritalStatus':
+          _isOrganizationDonor ? '' : (_selectedMaritalStatus ?? '').trim(),
       'regionID': donor?.regionId ?? 0,
       'areaID': _selectedAreaId,
+      'areaName': _areaOptions
+          .firstWhere(
+            (a) => a.areaId == _selectedAreaId,
+            orElse: () => const AreaOption(areaId: 0, areaName: ''),
+          )
+          .areaName
+          .trim(),
       'areaLeaderID': areaLeaderId,
       'promotionStaffID': promotionStaffId,
       'fieldStaffID': fieldStaffId,
@@ -621,8 +925,13 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       'district': _districtController.text.trim(),
       'state': (_selectedState ?? '').trim(),
       'pincode': _pincodeController.text.trim(),
-      'organization': donor?.organization ?? '',
-      'address': _addressController.text.trim(),
+      'country': (_selectedCountry ?? '').trim(),
+      'organization':
+          _isOrganizationDonor ? _donorNameController.text.trim() : '',
+      'contactPersonName':
+          _isOrganizationDonor ? _contactPersonNameController.text.trim() : '',
+      'address': _flatBuildingController.text.trim(),
+      'addressLine2': _addressController.text.trim(),
       'type': _selectedDonorType ?? 0,
       'userType': _toApiUserType(user?.userTypeName ?? ''),
       'userID': user?.userID ?? 0,
@@ -634,7 +943,9 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       'createdBy': updatedBy,
       'modifiedOn': now.toIso8601String(),
       'modifiedBy': updatedBy,
-      'dependents': dependentsPayload,
+      'dependents': _isOrganizationDonor
+          ? <Map<String, dynamic>>[]
+          : dependentsPayload,
     };
   }
 
@@ -650,13 +961,15 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       return;
     }
 
-    if (_selectedGender == null ||
-        _selectedMaritalStatus == null ||
+    if ((_isIndividualDonor &&
+            (_selectedGender == null || _selectedMaritalStatus == null)) ||
         _selectedState == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
+        SnackBar(
           content: Text(
-            'Select gender, marital status, and state to continue.',
+            _isIndividualDonor
+                ? 'Select gender, marital status, and state to continue.'
+                : 'Select state to continue.',
           ),
         ),
       );
@@ -688,7 +1001,6 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
 
     try {
       final payload = _buildUpdatePayload();
-      print('[UpdateProfilePage] Update donor payload: ${payload.toString()}');
       await DonorService.instance.updateDonor(
         donorId: donorId,
         payload: payload,
@@ -809,7 +1121,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
       bottomNavigationBar: _BottomActionBar(
         onUpdate: _handleUpdate,
         onPhoto: _handlePhoto,
-        onDependent: _openDependent,
+        onDependent: _isOrganizationDonor ? null : _openDependent,
         onBack: () => Navigator.of(context).maybePop(),
       ),
       body: SafeArea(
@@ -833,6 +1145,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                       _DonorTypeSelector(
                         value: _selectedDonorType,
                         onChanged: _selectDonorType,
+                        readOnly: true,
                       ),
                       const SizedBox(height: 14),
                       IgnorePointer(
@@ -842,61 +1155,61 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                           opacity: _hasSelectedDonorType ? 1 : 0.45,
                           child: Column(
                             children: [
-                              LayoutBuilder(
-                                builder: (context, constraints) {
-                                  final bool compact =
-                                      constraints.maxWidth < 420;
+                              if (_isOrganizationDonor)
+                                _OutlinedTextField(
+                                  controller: _donorNameController,
+                                  label: 'Organization Name',
+                                  icon: Icons.business_rounded,
+                                  validator: (value) => _requiredValidator(
+                                    value,
+                                    'Organization name is required',
+                                  ),
+                                )
+                              else
+                                LayoutBuilder(
+                                  builder: (context, constraints) {
+                                    final bool compact =
+                                        constraints.maxWidth < 420;
 
-                                  final titleField = _DropdownField(
-                                    value: _selectedTitle,
-                                    label: 'Title',
-                                    items: _titles,
-                                    onChanged: (value) {
-                                      if (value == null) return;
-                                      setState(() => _selectedTitle = value);
-                                    },
-                                  );
+                                    final titleField = _DropdownField(
+                                      value: _selectedTitle,
+                                      label: 'Title',
+                                      items: _titles,
+                                      onChanged: (value) {
+                                        if (value == null) return;
+                                        setState(() => _selectedTitle = value);
+                                      },
+                                    );
 
-                                  final nameField = _OutlinedTextField(
-                                    controller: _donorNameController,
-                                    label: 'Donor Name',
-                                    icon: Icons.person_rounded,
-                                    validator: (value) => _requiredValidator(
-                                      value,
-                                      'Donor name is required',
-                                    ),
-                                  );
+                                    final nameField = _OutlinedTextField(
+                                      controller: _donorNameController,
+                                      label: 'Donor Name',
+                                      icon: Icons.person_rounded,
+                                      validator: (value) => _requiredValidator(
+                                        value,
+                                        'Donor name is required',
+                                      ),
+                                    );
 
-                                  if (compact) {
-                                    return Column(
+                                    if (compact) {
+                                      return Column(
+                                        children: [
+                                          titleField,
+                                          const SizedBox(height: 14),
+                                          nameField,
+                                        ],
+                                      );
+                                    }
+
+                                    return Row(
                                       children: [
-                                        titleField,
-                                        const SizedBox(height: 14),
-                                        nameField,
+                                        Expanded(flex: 2, child: titleField),
+                                        const SizedBox(width: 12),
+                                        Expanded(flex: 5, child: nameField),
                                       ],
                                     );
-                                  }
-
-                                  return Row(
-                                    children: [
-                                      Expanded(flex: 2, child: titleField),
-                                      const SizedBox(width: 12),
-                                      Expanded(flex: 5, child: nameField),
-                                    ],
-                                  );
-                                },
-                              ),
-                              const SizedBox(height: 14),
-                              _ChoiceGroup(
-                                label: 'Gender',
-                                value: _selectedGender,
-                                options: _genders,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedGender = value;
-                                  });
-                                },
-                              ),
+                                  },
+                                ),
                               const SizedBox(height: 14),
                               Container(
                                 width: double.infinity,
@@ -1021,45 +1334,6 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                                 ),
                               ),
                               const SizedBox(height: 14),
-                              _OutlinedTextField(
-                                controller: _birthDateController,
-                                label: 'Birth Date',
-                                icon: Icons.calendar_month_rounded,
-                                readOnly: true,
-                                onTap: () => _pickDate(_birthDateController),
-                              ),
-                              const SizedBox(height: 14),
-                              _ChoiceGroup(
-                                label: 'Marital Status',
-                                value: _selectedMaritalStatus,
-                                options: _maritalStatuses,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _selectedMaritalStatus = value;
-                                    if (_selectedMaritalStatus != 'Married') {
-                                      _weddingDateController.clear();
-                                    }
-                                  });
-                                },
-                              ),
-                              if (_selectedMaritalStatus == 'Married') ...[
-                                const SizedBox(height: 14),
-                                _OutlinedTextField(
-                                  controller: _weddingDateController,
-                                  label: 'Wedding Date',
-                                  icon: Icons.calendar_month_rounded,
-                                  readOnly: true,
-                                  onTap: () =>
-                                      _pickDate(_weddingDateController),
-                                ),
-                              ],
-                              const SizedBox(height: 14),
-                              _ChoiceGroup(
-                                label: 'Membership',
-                                value: _selectedMembership,
-                                options: _membershipOptions,
-                              ),
-                              const SizedBox(height: 14),
                               _DropdownField(
                                 value: _selectedIdentityDoc,
                                 label: 'Identity Document Type',
@@ -1072,7 +1346,8 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                                   });
                                 },
                               ),
-                              if (_selectedIdentityDoc != null) ...[
+                              if (_selectedIdentityDoc != null &&
+                                  _selectedIdentityDoc != 'NaN') ...[
                                 const SizedBox(height: 14),
                                 _OutlinedTextField(
                                   controller: _selectedIdentityController,
@@ -1081,6 +1356,58 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                                   keyboardType: _selectedIdentityKeyboardType,
                                   textCapitalization:
                                       _selectedIdentityCapitalization,
+                                ),
+                              ],
+                              if (!_isOrganizationDonor) ...[
+                                const SizedBox(height: 14),
+                                _ChoiceGroup(
+                                  label: 'Gender',
+                                  value: _selectedGender,
+                                  options: _genders,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedGender = value;
+                                    });
+                                  },
+                                ),
+                                const SizedBox(height: 14),
+                                _OutlinedTextField(
+                                  controller: _birthDateController,
+                                  label: 'Birth Date',
+                                  icon: Icons.calendar_month_rounded,
+                                  readOnly: true,
+                                  onTap: () => _pickDate(_birthDateController),
+                                ),
+                                const SizedBox(height: 14),
+                                _ChoiceGroup(
+                                  label: 'Marital Status',
+                                  value: _selectedMaritalStatus,
+                                  options: _maritalStatuses,
+                                  onChanged: (value) {
+                                    setState(() {
+                                      _selectedMaritalStatus = value;
+                                      if (_selectedMaritalStatus != 'Married') {
+                                        _weddingDateController.clear();
+                                      }
+                                    });
+                                  },
+                                ),
+                                if (_selectedMaritalStatus == 'Married') ...[
+                                  const SizedBox(height: 14),
+                                  _OutlinedTextField(
+                                    controller: _weddingDateController,
+                                    label: 'Wedding Date',
+                                    icon: Icons.calendar_month_rounded,
+                                    readOnly: true,
+                                    onTap: () =>
+                                        _pickDate(_weddingDateController),
+                                  ),
+                                ],
+                                const SizedBox(height: 14),
+                                _ChoiceGroup(
+                                  label: 'Membership',
+                                  value: _selectedMembership,
+                                  options: _membershipOptions,
                                 ),
                               ],
                             ],
@@ -1149,39 +1476,88 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                           ),
                           const SizedBox(height: 14),
                           _OutlinedTextField(
-                            controller: _pincodeController,
-                            label: 'Pincode',
-                            icon: Icons.local_post_office_outlined,
-                            keyboardType: TextInputType.number,
-                          ),
-                          const SizedBox(height: 14),
-                          _OutlinedTextField(
                             controller: _districtController,
                             label: 'District',
                             icon: Icons.location_on_outlined,
                           ),
                           const SizedBox(height: 14),
                           _OutlinedTextField(
-                            controller: _addressController,
-                            label: 'Address',
-                            icon: Icons.home_rounded,
+                            controller: _pincodeController,
+                            label: 'Pincode',
+                            icon: Icons.local_post_office_outlined,
+                            keyboardType: TextInputType.number,
+                            maxLength: 6,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                           ),
                           const SizedBox(height: 14),
                           _DropdownField(
                             value: _selectedState,
-                            label: 'State',
-                            items: _states,
+                            label: _loadingStates ? 'Loading States...' : 'State',
+                            items: {
+                              if (_selectedState != null) _selectedState!,
+                              ..._stateOptions.map((s) => s.stateName.trim()),
+                            }.where((item) => item.isNotEmpty).toList(),
                             onChanged: (value) {
                               if (value == null) return;
-                              setState(() => _selectedState = value);
+                              setState(() {
+                                _selectedState = value;
+                                _updateCombinedAddress();
+                              });
+                            },
+                          ),
+                          const SizedBox(height: 14),
+                          _DropdownField(
+                            value: _selectedCountry,
+                            label: _loadingCountries
+                                ? 'Loading Countries...'
+                                : 'Country',
+                            items: {
+                              if (_selectedCountry != null) _selectedCountry!,
+                              ..._countryOptions.map((c) => c.countryName.trim()),
+                            }.where((item) => item.isNotEmpty).toList(),
+                            onChanged: (value) {
+                              if (value == null) return;
+                              setState(() {
+                                _selectedCountry = value;
+                                _updateCombinedAddress();
+                              });
                             },
                           ),
                           const SizedBox(height: 14),
                           _OutlinedTextField(
+                            controller: _addressController,
+                            label: _isOrganizationDonor
+                                ? 'Contact Address'
+                                : 'Address',
+                            icon: Icons.home_rounded,
+                            maxLines: null,
+                          ),
+                          if (_isOrganizationDonor) ...[
+                            const SizedBox(height: 14),
+                            _OutlinedTextField(
+                              controller: _contactPersonNameController,
+                              label: 'Contact Person Name',
+                              icon: Icons.person_outline_rounded,
+                              validator: (value) => _requiredValidator(
+                                value,
+                                'Contact person name is required',
+                              ),
+                            ),
+                          ],
+                          const SizedBox(height: 14),
+                          _OutlinedTextField(
                             controller: _mobileController,
-                            label: 'Mobile *',
+                            label: _isOrganizationDonor
+                                ? 'Contact Mobile *'
+                                : 'Mobile *',
                             icon: Icons.phone_android_rounded,
                             keyboardType: TextInputType.phone,
+                            maxLength: 10,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             validator: (value) {
                               final String? error = _requiredValidator(
                                 value,
@@ -1189,7 +1565,7 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                               );
                               if (error != null) return error;
                               if ((value ?? '').trim().length < 10) {
-                                return 'Enter a valid mobile number';
+                                return 'Mobile number must have 10 digits';
                               }
                               return null;
                             },
@@ -1197,14 +1573,21 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                           const SizedBox(height: 14),
                           _OutlinedTextField(
                             controller: _whatsAppController,
-                            label: 'WhatsApp No',
+                            label: _isOrganizationDonor
+                                ? 'Contact WhatsApp No'
+                                : 'WhatsApp No',
                             icon: Icons.message_outlined,
                             keyboardType: TextInputType.phone,
+                            maxLength: 10,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                           ),
                           const SizedBox(height: 14),
                           _OutlinedTextField(
                             controller: _emailController,
-                            label: 'Email',
+                            label:
+                                _isOrganizationDonor ? 'Contact Email' : 'Email',
                             icon: Icons.email_outlined,
                             keyboardType: TextInputType.emailAddress,
                             validator: (value) {
@@ -1221,14 +1604,15 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 14),
-                IgnorePointer(
-                  ignoring: !_hasSelectedDonorType,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 180),
-                    opacity: _hasSelectedDonorType ? 1 : 0.45,
-                    child: _SectionPanel(
-                      title: 'Dependent Details',
+                if (!_isOrganizationDonor) ...[
+                  const SizedBox(height: 14),
+                  IgnorePointer(
+                    ignoring: !_hasSelectedDonorType,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 180),
+                      opacity: _hasSelectedDonorType ? 1 : 0.45,
+                      child: _SectionPanel(
+                        title: 'Dependent Details',
                       isExpanded: _dependentsExpanded,
                       onToggle: () {
                         if (!_hasSelectedDonorType) return;
@@ -1275,36 +1659,66 @@ class _UpdateProfilePageState extends State<UpdateProfilePage> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          Align(
-                            alignment: Alignment.centerRight,
-                            child: ElevatedButton.icon(
-                              onPressed: _addDependentDraft,
-                              icon: const Icon(Icons.add_rounded),
-                              label: const Text('Add Dependent'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.statusBarPink,
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(14),
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              if (_editingDependentIndex != null) ...[
+                                OutlinedButton(
+                                  onPressed: _cancelEditDependent,
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: AppColors.textGrey,
+                                    side: const BorderSide(
+                                      color: AppColors.borderGrey,
+                                    ),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(14),
+                                    ),
+                                  ),
+                                  child: const Text('Cancel'),
+                                ),
+                                const SizedBox(width: 10),
+                              ],
+                              ElevatedButton.icon(
+                                onPressed: _addDependentDraft,
+                                icon: Icon(
+                                  _editingDependentIndex == null
+                                      ? Icons.add_rounded
+                                      : Icons.check_rounded,
+                                ),
+                                label: Text(
+                                  _editingDependentIndex == null
+                                      ? 'Add Dependent'
+                                      : 'Update Dependent',
+                                ),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.statusBarPink,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
                                 ),
                               ),
-                            ),
+                            ],
                           ),
-                          if (_dependents.isNotEmpty) ...[
+                          if (_dependents.any((d) => !d.deleted)) ...[
                             const SizedBox(height: 14),
-                            ...List.generate(
-                              _dependents.length,
-                              (index) => _DependentTile(
-                                dependent: _dependents[index],
-                                onRemove: () => _removeDependentAt(index),
-                              ),
-                            ),
+                            for (int index = 0;
+                                index < _dependents.length;
+                                index++)
+                              if (!_dependents[index].deleted)
+                                _DependentTile(
+                                  dependent: _dependents[index],
+                                  isEditing: _editingDependentIndex == index,
+                                  onEdit: () => _startEditDependent(index),
+                                  onRemove: () => _removeDependentAt(index),
+                                ),
                           ],
                         ],
                       ),
                     ),
                   ),
                 ),
+                ],
               ],
             ),
           ),
@@ -1404,6 +1818,9 @@ class _OutlinedTextField extends StatelessWidget {
     this.onTap,
     this.readOnly = false,
     this.textCapitalization = TextCapitalization.words,
+    this.maxLines = 1,
+    this.maxLength,
+    this.inputFormatters,
   });
 
   final TextEditingController controller;
@@ -1414,6 +1831,9 @@ class _OutlinedTextField extends StatelessWidget {
   final VoidCallback? onTap;
   final bool readOnly;
   final TextCapitalization textCapitalization;
+  final int? maxLines;
+  final int? maxLength;
+  final List<TextInputFormatter>? inputFormatters;
 
   @override
   Widget build(BuildContext context) {
@@ -1423,6 +1843,13 @@ class _OutlinedTextField extends StatelessWidget {
       keyboardType: keyboardType,
       readOnly: readOnly,
       onTap: onTap,
+      maxLines: maxLines,
+      maxLength: maxLength,
+      buildCounter: maxLength == null
+          ? null
+          : (context, {required currentLength, required isFocused, maxLength}) =>
+              null,
+      inputFormatters: inputFormatters,
       textCapitalization: textCapitalization,
       decoration: _inputDecoration(label, icon),
       style: const TextStyle(
@@ -1478,6 +1905,7 @@ class _DependentDraft {
     required this.createdBy,
     required this.modifiedOn,
     required this.modifiedBy,
+    this.fromServer = false,
   });
 
   final int relationID;
@@ -1492,12 +1920,56 @@ class _DependentDraft {
   final DateTime modifiedOn;
   final String modifiedBy;
 
+  /// True when this row came from the donor GET response, i.e. it exists
+  /// server-side and must be soft-deleted (deleted: true) rather than dropped.
+  final bool fromServer;
+
+  _DependentDraft copyWith({
+    String? relationName,
+    String? relationshipToDonor,
+    DateTime? relationBirthDate,
+    // Without this, passing a null relationBirthDate would silently keep the
+    // old value, so clearing the date in the form would never stick.
+    bool overwriteBirthDate = false,
+    String? relationAge,
+    bool? deleted,
+    DateTime? modifiedOn,
+    String? modifiedBy,
+  }) {
+    return _DependentDraft(
+      relationID: relationID,
+      donorID: donorID,
+      relationName: relationName ?? this.relationName,
+      relationshipToDonor: relationshipToDonor ?? this.relationshipToDonor,
+      relationBirthDate: overwriteBirthDate
+          ? relationBirthDate
+          : (relationBirthDate ?? this.relationBirthDate),
+      relationAge: relationAge ?? this.relationAge,
+      deleted: deleted ?? this.deleted,
+      createdOn: createdOn,
+      createdBy: createdBy,
+      modifiedOn: modifiedOn ?? this.modifiedOn,
+      modifiedBy: modifiedBy ?? this.modifiedBy,
+      fromServer: fromServer,
+    );
+  }
+
   Map<String, dynamic> toJson() {
+    final DateTime? birthDate = relationBirthDate;
     return <String, dynamic>{
       'relationID': relationID,
       'donorID': donorID,
       'relationName': relationName,
-      'relationBirthDate': relationBirthDate?.toUtc().toIso8601String(),
+      // Send the picked calendar date as UTC midnight. Using toUtc() on a
+      // local midnight shifts the date back a day in positive-offset zones
+      // (e.g. IST 04/08 00:00 -> 03/08 18:30Z).
+      'relationBirthDate': birthDate == null
+          ? null
+          : DateTime.utc(
+              birthDate.year,
+              birthDate.month,
+              birthDate.day,
+            ).toIso8601String(),
       'relationAge': relationAge,
       'relationshipToDonor': relationshipToDonor,
       'deleted': deleted,
@@ -1510,10 +1982,17 @@ class _DependentDraft {
 }
 
 class _DependentTile extends StatelessWidget {
-  const _DependentTile({required this.dependent, required this.onRemove});
+  const _DependentTile({
+    required this.dependent,
+    required this.onRemove,
+    required this.onEdit,
+    this.isEditing = false,
+  });
 
   final _DependentDraft dependent;
   final VoidCallback onRemove;
+  final VoidCallback onEdit;
+  final bool isEditing;
 
   @override
   Widget build(BuildContext context) {
@@ -1522,9 +2001,12 @@ class _DependentTile extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.surface,
+        color: isEditing ? AppColors.softPurple : AppColors.surface,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.borderGrey),
+        border: Border.all(
+          color: isEditing ? AppColors.primaryPurple : AppColors.borderGrey,
+          width: isEditing ? 1.4 : 1,
+        ),
       ),
       child: Row(
         children: [
@@ -1556,6 +2038,11 @@ class _DependentTile extends StatelessWidget {
             ),
           ),
           IconButton(
+            tooltip: 'Edit',
+            onPressed: onEdit,
+            icon: const Icon(Icons.edit_outlined, color: AppColors.iconPurple),
+          ),
+          IconButton(
             tooltip: 'Remove',
             onPressed: onRemove,
             icon: const Icon(Icons.close_rounded, color: AppColors.textGrey),
@@ -1579,10 +2066,16 @@ class _DropdownField extends StatelessWidget {
   final List<String> items;
   final ValueChanged<String?> onChanged;
 
+  /// Show about 5 rows, then scroll, so long lists (titles, states, countries)
+  /// don't open a menu that covers the whole screen.
+  static const double _menuMaxHeight = (kMinInteractiveDimension * 5) + 16;
+
   @override
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       value: value,
+      isExpanded: true,
+      menuMaxHeight: _menuMaxHeight,
       decoration: _OutlinedTextField._inputDecoration(
         value == null ? '' : label,
         Icons.arrow_drop_down,
@@ -1692,10 +2185,12 @@ class _DonorTypeSelector extends StatelessWidget {
   const _DonorTypeSelector({
     required this.value,
     required this.onChanged,
+    this.readOnly = false,
   });
 
   final int? value;
   final ValueChanged<int> onChanged;
+  final bool readOnly;
 
   @override
   Widget build(BuildContext context) {
@@ -1724,7 +2219,7 @@ class _DonorTypeSelector extends StatelessWidget {
                 child: _DonorTypeOption(
                   label: 'Individual',
                   selected: value == 1,
-                  onTap: () => onChanged(1),
+                  onTap: readOnly ? null : () => onChanged(1),
                 ),
               ),
               const SizedBox(width: 12),
@@ -1732,7 +2227,7 @@ class _DonorTypeSelector extends StatelessWidget {
                 child: _DonorTypeOption(
                   label: 'Others',
                   selected: value == 2,
-                  onTap: () => onChanged(2),
+                  onTap: readOnly ? null : () => onChanged(2),
                 ),
               ),
             ],
@@ -1752,7 +2247,7 @@ class _DonorTypeOption extends StatelessWidget {
 
   final String label;
   final bool selected;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -1811,13 +2306,13 @@ class _BottomActionBar extends StatelessWidget {
   const _BottomActionBar({
     required this.onUpdate,
     required this.onPhoto,
-    required this.onDependent,
     required this.onBack,
+    this.onDependent,
   });
 
   final VoidCallback onUpdate;
   final VoidCallback onPhoto;
-  final VoidCallback onDependent;
+  final VoidCallback? onDependent;
   final VoidCallback onBack;
 
   @override
@@ -1852,11 +2347,12 @@ class _BottomActionBar extends StatelessWidget {
               icon: Icons.photo_camera_outlined,
               onTap: onPhoto,
             ),
-            _BottomAction(
-              label: 'Dependent',
-              icon: Icons.person_add_alt_1_outlined,
-              onTap: onDependent,
-            ),
+            if (onDependent != null)
+              _BottomAction(
+                label: 'Dependent',
+                icon: Icons.person_add_alt_1_outlined,
+                onTap: onDependent!,
+              ),
             _BottomAction(
               label: 'Back',
               icon: Icons.arrow_back_ios_new_rounded,

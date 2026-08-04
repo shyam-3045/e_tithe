@@ -16,6 +16,7 @@ class ReceiptExportData {
     required this.fundDetails,
     required this.donorMobile,
     required this.donorEmail,
+    required this.companyName,
   });
 
   final int receiptId;
@@ -32,6 +33,7 @@ class ReceiptExportData {
   final List<ReceiptFundDetail> fundDetails;
   final String donorMobile;
   final String donorEmail;
+  final String companyName;
 }
 
 class ReceiptExportService {
@@ -52,6 +54,7 @@ class ReceiptExportService {
         : data.fundType;
 
     return [
+      if (data.companyName.trim().isNotEmpty) data.companyName.trim(),
       'Receipt ${data.receiptNo}',
       'Donor: ${data.donorName}',
       'Date: ${data.receiptDate}',

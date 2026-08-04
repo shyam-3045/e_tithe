@@ -5,7 +5,11 @@ class ApiEndpoints {
   static const String donor = '/api/Donor';
   static String donorById(int donorId) => '/api/Donor/$donorId';
   static const String region = '/api/Region';
+  static const String checkReceiptDateValidation =
+      '/api/Region/checkreceiptdatevalidation';
+  static const String upiIdByRegionName = '/api/Region/upiidbyregionname';
   static String userById(int userId) => '/api/User/$userId';
+  static const String changePassword = '/api/User/changepassword';
   static const String receipt = '/api/Receipt';
   static const String receiptByRepTypeRepIdAndReceiptDate =
       '/api/Receipt/ByRepTypeRepIdAndReceiptDate';

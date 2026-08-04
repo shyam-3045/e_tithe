@@ -36,6 +36,7 @@ class ReceiptHtmlGeneratorService {
                   0.0,
               donorMobile: data.donorMobile,
               donorEmail: data.donorEmail,
+              donorAddress: data.address,
               signURL: '',
             )
           ];

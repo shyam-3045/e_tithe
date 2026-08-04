@@ -6,10 +6,10 @@ import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../common/constants/api_config.dart';
-import '../../common/constants/api_endpoints.dart';
 import '../../common/constants/app_colors.dart';
 import '../../common/models/user_data.dart';
 import '../../common/services/auth_service.dart';
+import '../../common/services/region_service.dart';
 import '../../common/widgets/common_alert.dart';
 import 'update_profile_page.dart';
 import 'my_receipts_page.dart';
@@ -300,11 +300,24 @@ class _DonorsListPageState extends State<DonorsListPage> {
     );
   }
 
-  void _handleMenuSelection(
+  Future<void> _handleMenuSelection(
     BuildContext context, {
     required _DonorListItem donor,
     required _DonorMenuAction action,
-  }) {
+  }) async {
+    if (action == _DonorMenuAction.newReceipt) {
+      final bool canCreateReceipt = await _checkReceiptDateValidation(
+        donor,
+      );
+      if (!canCreateReceipt) {
+        return;
+      }
+    }
+
+    if (!context.mounted) {
+      return;
+    }
+
     Widget page;
 
     switch (action) {
@@ -329,6 +342,106 @@ class _DonorsListPageState extends State<DonorsListPage> {
         _refreshDonors();
       }
     });
+  }
+
+  /// Returns true if the region's receipt date validation allows creating a
+  /// receipt now; shows an "Applicable Date Expired" popup and returns false
+  /// otherwise.
+  Future<bool> _checkReceiptDateValidation(
+    _DonorListItem donor,
+  ) async {
+    final BuildContext localContext = context;
+    int regionId = donor.regionId;
+    if (regionId <= 0) {
+      final UserData? userData = await AuthService.instance.currentUserData();
+      if (!localContext.mounted) return false;
+      regionId = userData?.regionID ?? 0;
+    }
+
+    if (regionId <= 0) {
+      // No region to validate against; let receipt creation proceed as before.
+      return true;
+    }
+
+    if (!localContext.mounted) return false;
+
+    // Show loading dialog
+    showDialog<void>(
+      context: localContext,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return const Center(
+          child: CircularProgressIndicator(
+            valueColor: AlwaysStoppedAnimation<Color>(AppColors.primaryPurple),
+          ),
+        );
+      },
+    );
+
+    try {
+      final String message = await RegionService.instance
+          .checkReceiptDateValidation(
+        receiptDate: DateTime.now(),
+        regionId: regionId,
+      );
+
+      // Dismiss loading dialog
+      if (localContext.mounted) {
+        Navigator.of(localContext).pop();
+      } else {
+        return false;
+      }
+
+      if (message.toUpperCase() == 'OK') {
+        return true;
+      }
+
+      // Resolve region name
+      String regionName = '';
+      final UserData? userData = await AuthService.instance.currentUserData();
+      if (!localContext.mounted) return false;
+      if (userData != null && userData.regionID == regionId) {
+        regionName = userData.regionName;
+      } else {
+        try {
+          final List<RegionOption> regions =
+              await RegionService.instance.fetchRegions();
+          if (!localContext.mounted) return false;
+          final RegionOption region = regions.firstWhere(
+            (r) => r.regionId == regionId,
+            orElse: () => const RegionOption(regionId: 0, regionName: ''),
+          );
+          regionName = region.regionName;
+        } catch (_) {}
+      }
+
+      if (!localContext.mounted) return false;
+
+      if (regionName.isEmpty) {
+        regionName = 'this region';
+      }
+
+      await CommonAlert.showWarning(
+        localContext,
+        title: 'Applicable Date Expired',
+        message: 'The applicable date for the region $regionName is expired. Please update the applicable date so that the receipt can be created.',
+      );
+      return false;
+    } catch (error) {
+      // Dismiss loading dialog
+      if (localContext.mounted) {
+        Navigator.of(localContext).pop();
+      } else {
+        return false;
+      }
+
+      await CommonAlert.showWarning(
+        localContext,
+        title: 'Validation Failed',
+        message: 'Could not verify the receipt date. Please try again.',
+      );
+      return false;
+    }
   }
 }
 

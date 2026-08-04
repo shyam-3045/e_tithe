@@ -67,6 +67,7 @@ Future<Uint8List> buildReceiptPdfBytes(ReceiptExportData data) async {
                 0.0,
             donorMobile: data.donorMobile,
             donorEmail: data.donorEmail,
+            donorAddress: data.address,
             signURL: '',
           ),
         ];
@@ -595,7 +596,11 @@ String _composeDonorAddress({
     address.trim(),
     pincode.trim(),
   ].where((value) => value.isNotEmpty).toList();
-  return values.isEmpty ? 'Address not provided' : values.join(', ');
+  if (values.isEmpty) return 'Address not provided';
+  // donorAddress arrives with a newline between each segment. pw.Text honours
+  // those as hard line breaks, while the HTML preview collapses them to single
+  // spaces. Collapse here too so the shared PDF matches what was previewed.
+  return values.join(', ').replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
 pw.Widget _buildInfoBox({

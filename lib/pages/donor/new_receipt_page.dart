@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -10,6 +11,7 @@ import '../../common/services/donor_service.dart';
 import '../../common/services/fund_service.dart';
 import '../../common/services/payment_mode_service.dart';
 import '../../common/services/receipt_service.dart';
+import '../../common/services/region_service.dart';
 import '../../common/services/user_service.dart';
 import '../../common/widgets/common_alert.dart';
 import 'receipt_submission_success_page.dart';
@@ -1150,22 +1152,74 @@ class _ReceiptSignaturePage extends StatefulWidget {
 }
 
 class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
-  static const String _hardcodedUpiId = '9940644753@kotakbank';
-
   bool _isSubmitting = false;
   late final TextEditingController _notesController;
   PaymentModeInfo? _selectedPaymentMode;
+
+  bool _isLoadingUpi = false;
+  String? _upiId;
+  String? _upiError;
+
+  final TextEditingController _transactionIdController =
+      TextEditingController();
+  final TextEditingController _bankNameController = TextEditingController();
+  final TextEditingController _chequeNoController = TextEditingController();
+  final TextEditingController _chequeDateController = TextEditingController();
+  DateTime? _chequeDate;
 
   @override
   void initState() {
     super.initState();
     _notesController = TextEditingController(text: widget.notes);
+
+    final DateTime today = DateTime.now();
+    _chequeDate = today;
+    _chequeDateController.text = '${today.day.toString().padLeft(2, '0')}/'
+        '${today.month.toString().padLeft(2, '0')}/'
+        '${today.year}';
   }
 
   @override
   void dispose() {
     _notesController.dispose();
+    _transactionIdController.dispose();
+    _bankNameController.dispose();
+    _chequeNoController.dispose();
+    _chequeDateController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickChequeDate() async {
+    final DateTime now = DateTime.now();
+    final DateTime? pickedDate = await showDatePicker(
+      context: context,
+      initialDate: _chequeDate ?? now,
+      firstDate: DateTime(2000),
+      lastDate: DateTime(now.year + 1),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: AppColors.primaryPurple,
+              onPrimary: Colors.white,
+              surface: AppColors.surface,
+              onSurface: AppColors.textDark,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (pickedDate == null) return;
+
+    setState(() {
+      _chequeDate = pickedDate;
+      _chequeDateController.text =
+          '${pickedDate.day.toString().padLeft(2, '0')}/'
+          '${pickedDate.month.toString().padLeft(2, '0')}/'
+          '${pickedDate.year}';
+    });
   }
 
   String _normalizeRepType(String userTypeName) {
@@ -1179,14 +1233,121 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     return '${local.year}-$month-$day';
   }
 
+  Future<int> _resolveRegionId() async {
+    final UserDetails user = await _resolveCurrentUser();
+    final DonorDetails donor = await DonorService.instance.fetchDonorById(
+      widget.donorId,
+    );
+    return (widget.regionId != null && widget.regionId! > 0)
+        ? widget.regionId!
+        : (donor.regionId > 0 ? donor.regionId : user.regionId);
+  }
+
+  Future<void> _loadUpiId() async {
+    setState(() {
+      _isLoadingUpi = true;
+      _upiError = null;
+      _upiId = null;
+    });
+
+    try {
+      final int regionId = await _resolveRegionId();
+      if (regionId <= 0) {
+        throw Exception('Region not found for this donor.');
+      }
+
+      final List<RegionOption> regions = await RegionService.instance
+          .fetchRegions();
+      final RegionOption region = regions.firstWhere(
+        (option) => option.regionId == regionId,
+        orElse: () => throw Exception('Region not found.'),
+      );
+
+      final String upiId = await RegionService.instance.fetchUpiIdByRegionName(
+        region.regionName,
+      );
+
+      if (!mounted) return;
+      setState(() {
+        _upiId = upiId;
+        _isLoadingUpi = false;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _isLoadingUpi = false;
+        _upiError = 'Could not load UPI details for this region.';
+      });
+    }
+  }
+
   Widget _buildUpiQrCard() {
     if (_selectedPaymentMode == null) return const SizedBox.shrink();
 
     final String modeName = _selectedPaymentMode!.name.toLowerCase();
     if (modeName != 'upi') return const SizedBox.shrink();
 
+    if (_isLoadingUpi) {
+      return Container(
+        margin: const EdgeInsets.only(top: 16),
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.borderGrey),
+        ),
+        child: const Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (_upiError != null) {
+      return Container(
+        margin: const EdgeInsets.only(top: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.borderGrey),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _upiError!,
+              style: const TextStyle(color: AppColors.textGrey, fontSize: 14),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: _loadUpiId,
+                child: const Text('Retry'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final String upiId = _upiId ?? '';
+    if (upiId.isEmpty) {
+      return Container(
+        margin: const EdgeInsets.only(top: 16),
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: AppColors.surface,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: AppColors.borderGrey),
+        ),
+        child: const Text(
+          'No UPI ID configured for this region.',
+          style: TextStyle(color: AppColors.textGrey, fontSize: 14),
+        ),
+      );
+    }
+
     final double amount = widget.totalAmount;
-    final String upiUrl = 'upi://pay?pa=$_hardcodedUpiId&pn=${Uri.encodeComponent('eTithe')}&am=${amount.toStringAsFixed(2)}&cu=INR';
+    final String upiUrl = 'upi://pay?pa=$upiId&pn=${Uri.encodeComponent('eTithe')}&am=${amount.toStringAsFixed(2)}&cu=INR';
 
     return Container(
       margin: const EdgeInsets.only(top: 16),
@@ -1265,10 +1426,10 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
               color: AppColors.softPurple.withOpacity(0.5),
               borderRadius: BorderRadius.circular(12),
             ),
-            child: const Column(
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
+                const Text(
                   'UPI ID',
                   style: TextStyle(
                     color: AppColors.textGrey,
@@ -1276,10 +1437,10 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                SizedBox(height: 2),
+                const SizedBox(height: 2),
                 Text(
-                  _hardcodedUpiId,
-                  style: TextStyle(
+                  upiId,
+                  style: const TextStyle(
                     color: AppColors.textDark,
                     fontSize: 14,
                     fontWeight: FontWeight.w700,
@@ -1287,6 +1448,71 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
                 ),
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPaymentDetailFields() {
+    if (_selectedPaymentMode == null) return const SizedBox.shrink();
+
+    final String modeName = _selectedPaymentMode!.name.trim().toLowerCase();
+    final bool isUpi = modeName == 'upi';
+    final bool isCheque = modeName == 'cheque';
+
+    if (!isUpi && !isCheque) return const SizedBox.shrink();
+
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.borderGrey),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (isCheque) ...[
+            TextFormField(
+              controller: _bankNameController,
+              decoration: _fieldDecoration(
+                label: 'Bank Name',
+                icon: Icons.account_balance_rounded,
+              ),
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _chequeNoController,
+              decoration: _fieldDecoration(
+                label: 'Cheque No',
+                icon: Icons.numbers_rounded,
+              ),
+              textInputAction: TextInputAction.next,
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              controller: _chequeDateController,
+              readOnly: true,
+              onTap: _pickChequeDate,
+              decoration: _fieldDecoration(
+                label: 'Cheque Date',
+                icon: Icons.calendar_month_rounded,
+              ),
+            ),
+            const SizedBox(height: 14),
+          ],
+          TextFormField(
+            controller: _transactionIdController,
+            decoration: _fieldDecoration(
+              label: 'Transaction ID',
+              icon: Icons.confirmation_number_rounded,
+            ),
+            keyboardType: TextInputType.number,
+            inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+            textInputAction: TextInputAction.done,
           ),
         ],
       ),
@@ -1348,14 +1574,20 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
     final String repName = user.userName;
     const int receiptId = 0;
 
+    final String bankName = _bankNameController.text.trim();
+    final String chequeNo = _chequeNoController.text.trim();
+    final int transactionId =
+        int.tryParse(_transactionIdController.text.trim()) ?? 0;
+    final String chequeDate = (_chequeDate ?? now).toUtc().toIso8601String();
+
     final List<Map<String, dynamic>> receiptLines = widget.payments.map((item) {
       return <String, dynamic>{
         'ReceiptLineID': 0,
         'ReceiptID': receiptId,
         'Amount': item.amount.round(),
-        'BankName': 'N/A',
-        'ChequeDate': utcNow,
-        'ChequeNo': 'N/A',
+        'bankName': bankName.isEmpty ? 'N/A' : bankName,
+        'chequeDate': chequeDate,
+        'chequeNo': chequeNo.isEmpty ? 'N/A' : chequeNo,
         'FundID': item.fundId,
         'FundName': item.fundName,
         'PaymentMode': paymentMode,
@@ -1392,6 +1624,7 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
       'RepName': repName,
       'DonorName': donor.name,
       'Mobile': '',
+      'transactionID': transactionId,
       'ReceiptLines': receiptLines,
     };
   }
@@ -1614,12 +1847,23 @@ class _ReceiptSignaturePageState extends State<_ReceiptSignaturePage> {
                         setState(() {
                           _selectedPaymentMode = value;
                         });
+                        if (value != null &&
+                            value.name.trim().toLowerCase() == 'upi') {
+                          _loadUpiId();
+                        } else if (_upiId != null || _upiError != null) {
+                          setState(() {
+                            _upiId = null;
+                            _upiError = null;
+                            _isLoadingUpi = false;
+                          });
+                        }
                       },
                     ),
                   ],
                 ),
               ),
               _buildUpiQrCard(),
+              _buildPaymentDetailFields(),
               const SizedBox(height: 16),
               TextFormField(
                 controller: _notesController,

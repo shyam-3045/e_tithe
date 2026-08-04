@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../constants/api_config.dart';
 import '../constants/api_endpoints.dart';
+import '../utils/log_utils.dart';
 import 'auth_service.dart';
 
 class DonorDetails {
@@ -25,6 +26,7 @@ class DonorDetails {
     required this.state,
     required this.district,
     required this.pincode,
+    required this.country,
     required this.mobile,
     required this.whatsApp,
     required this.email,
@@ -36,7 +38,14 @@ class DonorDetails {
     required this.voterId,
     required this.drivingLicence,
     required this.organization,
+    required this.contactPersonName,
+    required this.gstNumber,
+    required this.tanNumber,
+    required this.udyamNumber,
+    required this.tradeLicenseNumber,
+    required this.registrationNumber,
     required this.address,
+    required this.addressLine2,
     required this.dependents,
   });
 
@@ -55,7 +64,10 @@ class DonorDetails {
       maritalStatus: _string(json['maritalStatus'], fallback: 'Married'),
       membership: _string(json['membership'], fallback: 'Member'),
       flatBuilding: _string(
-        json['flatBuilding'] ?? json['flatNo'] ?? json['houseNo'],
+        json['flatBuilding'] ??
+            json['village'] ??
+            json['flatNo'] ??
+            json['houseNo'],
       ),
       street: _string(json['street'] ?? json['addressLine1'] ?? json['road']),
       city: _string(json['city']),
@@ -63,13 +75,19 @@ class DonorDetails {
       state: _string(json['state']),
       district: _string(json['district']),
       pincode: _string(json['pincode'] ?? json['pinCode'] ?? json['zipcode']),
+      country: _string(json['country']),
       mobile: _string(json['mobileNo'] ?? json['mobile'] ?? json['phone']),
       whatsApp: _string(
-        json['whatsAppNo'] ?? json['whatsappNo'] ?? json['whatsapp'],
+        json['whatsAppNumber'] ??
+            json['whatsAppNo'] ??
+            json['whatsappNo'] ??
+            json['whatsapp'],
       ),
       email: _string(json['email']),
       birthDate: _string(json['birthDate'] ?? json['dob']),
-      weddingDate: _string(json['weddingDate'] ?? json['anniversaryDate']),
+      weddingDate: _string(
+        json['weddingDate'] ?? json['marriageDate'] ?? json['anniversaryDate'],
+      ),
       aadharNo: _string(
         json['aadharNo'] ??
             json['aadhaarNo'] ??
@@ -83,7 +101,18 @@ class DonorDetails {
         json['drivingLicence'] ?? json['drivingLicense'],
       ),
       organization: _string(json['organization']),
+      contactPersonName: _string(json['contactPersonName']),
+      gstNumber: _string(json['gstNumber'] ?? json['gstNo']),
+      tanNumber: _string(json['tanNumber'] ?? json['tanNo']),
+      udyamNumber: _string(json['udyamNumber'] ?? json['udyamNo']),
+      tradeLicenseNumber: _string(
+        json['tradeLicenseNumber'] ?? json['tradeLicenseNo'],
+      ),
+      registrationNumber: _string(
+        json['registrationNumber'] ?? json['registrationNo'],
+      ),
       address: _string(json['address']),
+      addressLine2: _string(json['addressLine2']),
       dependents: _parseDependents(json),
     );
   }
@@ -105,6 +134,7 @@ class DonorDetails {
   final String state;
   final String district;
   final String pincode;
+  final String country;
   final String mobile;
   final String whatsApp;
   final String email;
@@ -116,7 +146,14 @@ class DonorDetails {
   final String voterId;
   final String drivingLicence;
   final String organization;
+  final String contactPersonName;
+  final String gstNumber;
+  final String tanNumber;
+  final String udyamNumber;
+  final String tradeLicenseNumber;
+  final String registrationNumber;
   final String address;
+  final String addressLine2;
   final List<DonorDependent> dependents;
 
   static int _parseInt(Object? value) {
@@ -233,11 +270,11 @@ class DonorService {
     final Map<String, String> headers =
         await AuthService.instance.authenticatedJsonHeaders();
 
-    print('[API] URL: $uri');
-    print('[API] Payload: N/A');
+    print('[API] GET $uri');
 
     final http.Response response = await _client.get(uri, headers: headers);
-    print('[API] Response: ${response.statusCode} ${response.body}');
+    printLong(
+        '[API] Donor $donorId response ${response.statusCode}', response.body);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Failed to load donor details. Please try again.');
@@ -265,8 +302,7 @@ class DonorService {
 
     final String body = jsonEncode(payload);
     print('[API] PUT $uri');
-    print('[API] Request headers: ${jsonEncode(headers)}');
-    print('[API] Request body: $body');
+    printLong('[API] Request body', body);
 
     final http.Response response = await _client.put(
       uri,
@@ -274,7 +310,7 @@ class DonorService {
       body: body,
     );
 
-    print('[API] Response: ${response.statusCode} ${response.body}');
+    printLong('[API] Response ${response.statusCode}', response.body);
 
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw Exception('Failed to update donor. Status: ${response.statusCode}');

@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../common/constants/app_colors.dart';
+import '../../common/services/auth_service.dart';
 import '../../common/widgets/app_form_text_field.dart';
+import '../../common/widgets/common_alert.dart';
 import '../../common/widgets/primary_button.dart';
 
 class ResetPasswordPage extends StatefulWidget {
@@ -13,8 +15,6 @@ class ResetPasswordPage extends StatefulWidget {
 }
 
 class _ResetPasswordPageState extends State<ResetPasswordPage> {
-  final _formKey = GlobalKey<FormState>();
-
   final _oldPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -32,22 +32,63 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
     super.dispose();
   }
 
+  void _showToast(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
   Future<void> _handleSubmit() async {
     FocusScope.of(context).unfocus();
 
-    if (!_formKey.currentState!.validate()) return;
+    if (_oldPasswordController.text.trim().isEmpty) {
+      _showToast('Old password is required');
+      return;
+    }
+    if (_newPasswordController.text.trim().isEmpty) {
+      _showToast('New password is required');
+      return;
+    }
+    if (_confirmPasswordController.text.trim().isEmpty) {
+      _showToast('Please retype password');
+      return;
+    }
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      _showToast('Passwords do not match');
+      return;
+    }
 
     setState(() => _isSubmitting = true);
     try {
-      // TODO(API): Call reset/change password API here.
-      // Payload: oldPassword/newPassword.
-      await Future<void>.delayed(const Duration(milliseconds: 450));
+      final AuthSession? session = await AuthService.instance.currentSession();
+      final String email = session?.email?.trim() ?? '';
+      if (email.isEmpty) {
+        if (!mounted) return;
+        await CommonAlert.showInfo(
+          context,
+          title: 'Session expired',
+          message: 'Could not find your account email. Please login again.',
+        );
+        return;
+      }
+
+      await AuthService.instance.changePassword(
+        emailID: email,
+        oldPassword: _oldPasswordController.text,
+        newPassword: _newPasswordController.text,
+      );
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('UI ready. Hook API call in _handleSubmit().'),
-        ),
+        const SnackBar(content: Text('Password changed successfully.')),
+      );
+      Navigator.of(context).pop(true);
+    } catch (error) {
+      if (!mounted) return;
+      await CommonAlert.showInfo(
+        context,
+        title: 'Change password failed',
+        message: error.toString(),
       );
     } finally {
       if (mounted) setState(() => _isSubmitting = false);
@@ -65,12 +106,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
       child: Scaffold(
         appBar: AppBar(title: const Text('Change Password')),
         body: SafeArea(
-          child: Form(
-            key: _formKey,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(18, 24, 18, 24),
-              child: Column(
-                children: [
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.fromLTRB(18, 24, 18, 24),
+            child: Column(
+              children: [
                   AppFormTextField(
                     controller: _oldPasswordController,
                     hintText: 'Old Password',
@@ -86,7 +125,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                         size: 22,
                       ),
                     ),
-                    validator: (v) => _required(v, 'Old password is required'),
                   ),
                   const SizedBox(height: 16),
                   AppFormTextField(
@@ -104,7 +142,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                         size: 22,
                       ),
                     ),
-                    validator: (v) => _required(v, 'New password is required'),
                   ),
                   const SizedBox(height: 16),
                   AppFormTextField(
@@ -123,14 +160,6 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
                         size: 22,
                       ),
                     ),
-                    validator: (v) {
-                      final base = _required(v, 'Please retype password');
-                      if (base != null) return base;
-                      if ((v ?? '') != _newPasswordController.text) {
-                        return 'Passwords do not match';
-                      }
-                      return null;
-                    },
                   ),
                   const SizedBox(height: 18),
                   PrimaryButton(
@@ -143,14 +172,10 @@ class _ResetPasswordPageState extends State<ResetPasswordPage> {
             ),
           ),
         ),
-      ),
     );
   }
-
-  static String? _required(String? value, String message) {
-    return (value ?? '').trim().isEmpty ? message : null;
-  }
 }
+
 
 class _GradientAppBarBackground extends StatelessWidget {
   const _GradientAppBarBackground();

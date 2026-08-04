@@ -195,6 +195,7 @@ class ReceiptFundDetail {
     required this.amount,
     required this.donorMobile,
     required this.donorEmail,
+    required this.donorAddress,
     required this.signURL,
   });
 
@@ -212,6 +213,7 @@ class ReceiptFundDetail {
       amount: _parseDouble(json['amount']),
       donorMobile: _string(json['donorMobile'] ?? json['donorPhone']),
       donorEmail: _string(json['donorEmail']),
+      donorAddress: _string(json['donorAddress']),
       signURL: _string(json['signURL'] ?? json['signUrl']),
     );
   }
@@ -227,6 +229,7 @@ class ReceiptFundDetail {
   final double amount;
   final String donorMobile;
   final String donorEmail;
+  final String donorAddress;
   final String signURL;
 
   static int _parseInt(Object? value) {

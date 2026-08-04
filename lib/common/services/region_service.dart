@@ -71,4 +71,64 @@ class RegionService {
     }
     return const <dynamic>[];
   }
+
+  Future<String> checkReceiptDateValidation({
+    required DateTime receiptDate,
+    required int regionId,
+  }) async {
+    final Uri uri = ApiConfig.uri(ApiEndpoints.checkReceiptDateValidation)
+        .replace(
+      queryParameters: <String, String>{
+        'receiptDate': _formatDate(receiptDate),
+        'regionId': regionId.toString(),
+      },
+    );
+    final Map<String, String> headers = await AuthService.instance
+        .authenticatedJsonHeaders();
+
+    print('[API] URL: $uri');
+
+    final http.Response response = await _client.get(uri, headers: headers);
+    print('[API] Response: ${response.statusCode} ${response.body}');
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to validate receipt date. Please try again.');
+    }
+
+    final Object decoded = jsonDecode(response.body);
+    if (decoded is Map<String, dynamic>) {
+      return (decoded['message'] ?? '').toString().trim();
+    }
+    return decoded.toString().trim();
+  }
+
+  Future<String> fetchUpiIdByRegionName(String regionName) async {
+    final Uri uri = ApiConfig.uri(
+      '${ApiEndpoints.upiIdByRegionName}/${Uri.encodeComponent(regionName)}',
+    );
+    final Map<String, String> headers = await AuthService.instance
+        .authenticatedJsonHeaders();
+
+    print('[API] URL: $uri');
+
+    final http.Response response = await _client.get(uri, headers: headers);
+    print('[API] Response: ${response.statusCode} ${response.body}');
+
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception('Failed to load UPI ID for this region.');
+    }
+
+    final Object decoded = jsonDecode(response.body);
+    if (decoded is Map<String, dynamic>) {
+      return (decoded['upi'] ?? '').toString().trim();
+    }
+    return decoded.toString().trim();
+  }
+
+  String _formatDate(DateTime date) {
+    final String year = date.year.toString().padLeft(4, '0');
+    final String month = date.month.toString().padLeft(2, '0');
+    final String day = date.day.toString().padLeft(2, '0');
+    return '$year-$month-$day';
+  }
 }
